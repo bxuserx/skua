@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>edit ticket</title>
+        <!-- FOUC-prevention: see index.html for the rationale. Same
+             snippet kept in sync across all three pages. -->
+        <script>
+            (function () {
+                try {
+                    var saved = localStorage.getItem("skua-theme");
+                    if (saved === "dark" || saved === "light") {
+                        document.documentElement.dataset.theme = saved;
+                        return;
+                    }
+                } catch (e) {}
+                if (
+                    window.matchMedia &&
+                    window.matchMedia("(prefers-color-scheme: dark)").matches
+                ) {
+                    document.documentElement.dataset.theme = "dark";
+                }
+            })();
+        </script>
+        <link rel="stylesheet" href="/styles.css" />
+    </head>
+    <body class="ticket-page">
+        <!-- skua:navbar status -->
+
+        <div class="toolbar">
+            <button
+                class="btn btn--secondary"
+                type="button"
+                data-expand-all
+                aria-pressed="false"
+                title="Expand or collapse every section"
+            >
+                expand all
+            </button>
+            <button class="btn btn--danger" id="delete">Delete</button>
+            <button class="btn" id="save">Save</button>
+            <a class="ticket-close" href="/" aria-label="Close">×</a>
+        </div>
+
+        <main class="edit-wrap">
+            <h1 class="ticket-id-heading" id="f-id"></h1>
+            <div class="field field-full">
+                <label>title</label>
+                <input id="f-title" />
+            </div>
+
+            <div class="meta-row">
+                <div class="field">
+                    <label>bucket</label>
+                    <select id="f-bucket">
+                        <option value="scratch">scratch</option>
+                        <option value="0-backlog">0-backlog</option>
+                        <option value="1-staging">1-staging</option>
+                        <option value="2-stuck">2-stuck</option>
+                        <option value="3-building">3-building</option>
+                        <option value="4-testing">4-testing</option>
+                        <option value="5-validating">5-validating</option>
+                        <option value="6-complete">6-complete</option>
+                        <option value="7-archive">7-archive</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label>priority</label>
+                    <select id="f-priority">
+                        <option>High</option>
+                        <option>Medium</option>
+                        <option>Low</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label>domain</label>
+                    <input
+                        id="f-domain"
+                        list="domain-list"
+                        autocomplete="off"
+                        placeholder="type or pick"
+                    />
+                    <datalist id="domain-list"></datalist>
+                </div>
+                <div class="field">
+                    <label>complexity</label>
+                    <select id="f-complexity">
+                        <option value="auto">auto (AI decides)</option>
+                        <option value="1">1 — trivial</option>
+                        <option value="2">2 — small</option>
+                        <option value="3">3 — medium</option>
+                        <option value="4">4 — large</option>
+                        <option value="5">5 — xl</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="adr-md ticket-rel-wrap">
+                <details class="adr-section adr-section-relationships-tags ticket-rel-accordion">
+                    <summary class="adr-section-h">relationships &amp; tags</summary>
+                    <div class="rel-body">
+                        <div class="field">
+                            <label>depends_on</label>
+                            <input id="f-depends_on" placeholder="TKT-xxx" />
+                        </div>
+                        <div class="field">
+                            <label>blocks</label>
+                            <input id="f-blocks" placeholder="TKT-xxx" />
+                        </div>
+                        <div class="field">
+                            <label>related</label>
+                            <input id="f-related" placeholder="TKT-xxx" />
+                        </div>
+                        <div class="field">
+                            <label>tags</label>
+                            <input id="f-tags" placeholder="comma-separated" />
+                        </div>
+                    </div>
+                </details>
+            </div>
+
+            <hr class="ticket-def-divider" />
+
+            <div class="field field-full" id="impl-summary-field" hidden>
+                <label>implementation summary</label>
+                <section class="impl-summary" id="impl-summary">
+                    <div class="impl-summary-sections">
+                        <ul id="impl-main-list"></ul>
+                        <div id="impl-deviations-section" hidden>
+                            <h4 class="impl-sub-heading">
+                                deviations from plan
+                            </h4>
+                            <ul id="impl-deviations-list"></ul>
+                        </div>
+                        <div id="impl-notes-section" hidden>
+                            <h4 class="impl-sub-heading">
+                                implementation notes
+                            </h4>
+                            <ul id="impl-notes-list"></ul>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <div class="field field-full">
+                <label>initial plan</label>
+                <div id="f-body-sections" class="adr-md ticket-body-sections"></div>
+            </div>
+
+            <section class="files-touched" id="files-touched" hidden>
+                <header>
+                    <h3>files touched</h3>
+                    <span class="files-meta" id="files-meta"></span>
+                </header>
+                <ul id="files-list"></ul>
+            </section>
+        </main>
+
+        <!-- Delete confirmation modal -->
+        <div class="modal" id="delete-modal" hidden>
+            <div class="modal-backdrop" id="delete-modal-cancel"></div>
+            <div
+                class="modal-card"
+                style="width: min(400px, calc(100% - 32px))"
+            >
+                <header class="modal-head">
+                    <h3>Delete ticket?</h3>
+                    <button
+                        type="button"
+                        class="close-btn"
+                        id="delete-modal-cancel-btn"
+                        aria-label="Cancel"
+                    >
+                        ×
+                    </button>
+                </header>
+                <div class="modal-body">
+                    <p
+                        id="delete-modal-msg"
+                        style="margin: 0; color: var(--ink)"
+                    ></p>
+                </div>
+                <footer class="modal-foot">
+                    <button
+                        type="button"
+                        class="btn btn--secondary"
+                        id="delete-modal-cancel-btn2"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        type="button"
+                        class="btn btn--danger"
+                        id="delete-modal-confirm"
+                    >
+                        Delete
+                    </button>
+                </footer>
+            </div>
+        </div>
+
+        <!-- skua:howto-modal -->
+
+        <script type="module" src="/ticket-edit.js"></script>
+        <script type="module" src="/components/theme.js"></script>
+        <script type="module" src="/components/navbar-search.js"></script>
+        <script type="module" src="/components/howto.js"></script>
+        <script src="/components/expand-all.js"></script>
+    </body>
+</html>

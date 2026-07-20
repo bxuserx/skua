@@ -1,0 +1,311 @@
+:root {
+    /* Neutrals — warm cream */
+    --bg: #f2efe8;
+    --paper: #faf8f3;
+    --paper-2: #ece8e0;
+    --ink: #15130f;
+    --muted: #5d574d;
+    --border: #e0dcd2;
+    --rule: rgba(21, 19, 15, 0.12);
+    --row-hover: rgba(30, 102, 245, 0.06);
+    /* Terminal tab hover/active tint — a neutral grey (slightly darker than
+       the panel) on light; flips to translucent white on dark. */
+    --term-tab-hover: rgba(21, 19, 15, 0.045);
+    --term-tab-active: rgba(21, 19, 15, 0.075);
+
+    /* Accents — Catppuccin Latte */
+    --red: #fa7373;
+    --blue: #1e66f5;
+    --green: #40a02b;
+    --yellow: #df8e1d;
+    --peach: #fe640b;
+    --mauve: #8839ef;
+    --teal: #179299;
+    --sapphire: #209fb5;
+    --focus: rgba(30, 102, 245, 0.4);
+
+    /* Roles */
+    --accent: var(--blue);
+
+    /* Lifecycle-progress pastels — scratch → archive reads as a soft
+       left-to-right gradient. Borders are slightly darker shades of the
+       same pastel so the swatch reads as a single color, not the old
+       saturated Catppuccin accent. See TKT-151. Staging + building
+       aliases align the lifecycle hues with the priority palette (see
+       TKT-195) so the visual language reads as one system. */
+    --bucket-scratch: #ede7d6;
+    --bucket-backlog: #36322a;
+    --bucket-staging: #8a6a8a;
+    --bucket-stuck: var(--prio-high);
+    --bucket-building: var(--prio-medium);
+    --bucket-testing: #f08c2c;
+    --bucket-validating: #f0c419;
+    --bucket-complete: #6fb058;
+    --bucket-archive: #4a6e40;
+    --bucket-scratch-border: #b8b1a0;
+    --bucket-backlog-border: #2f2b24;
+    --bucket-staging-border: #6b4f6b;
+    --bucket-stuck-border: #b51d1d;
+    --bucket-building-border: #c46f1d;
+    --bucket-testing-border: #c46f1d;
+    --bucket-validating-border: #c69e15;
+    --bucket-complete-border: #4a8038;
+    --bucket-archive-border: #264720;
+
+    --prio-high: #d92626;
+    --prio-medium: #f08c2c;
+    --prio-low: #9ca3af;
+
+    --domain-app: var(--blue);
+    --domain-infra: var(--peach);
+    --domain-docs: var(--green);
+    --domain-meta: var(--muted);
+
+    /* Tokenized shadow base — light theme casts ink-tinted shadows,
+       dark theme casts true-black shadows so they remain visible.
+       Consumers compose via `rgba(var(--shadow-rgb), <alpha>)`. */
+    --shadow-rgb: 21, 19, 15;
+    --backdrop-rgb: 21, 19, 15;
+
+    /* Stack banner (amber experimental) — tokenized so the dark theme
+       can rebalance without re-declaring the whole rule block. */
+    --stack-banner-bg: #fef3c7;
+    --stack-banner-border: #f59e0b;
+    --stack-banner-text: #78350f;
+    --stack-banner-btn-bg: #b45309;
+    --stack-banner-btn-fg: #ffffff;
+    --stack-banner-btn-bg-hover: #92400e;
+
+    /* Graph legend pastel fills — tokenized so dark theme can darken
+       them while keeping the same hue family. */
+    --swatch-api-fill: #e6d6fb;
+    --swatch-analytics-fill: #dde6fb;
+    --swatch-bq-fill: #fde0cf;
+    --swatch-sql-fill: #fdf0c8;
+    --swatch-specialized-fill: #dceedb;
+    --swatch-action-fill: #fbdada;
+    --swatch-utility-fill: #d4ebec;
+
+    --font-display: "Fira Code", ui-monospace, SFMono-Regular, monospace;
+    --font-mono: "Fira Code", ui-monospace, SFMono-Regular, monospace;
+
+    /* ── Typography scale (TKT-228)
+       The dashboard uses a tight monospace-friendly ramp. `base` is the
+       dominant UI size (12px); `md` is the body-text size (13px, the
+       body element default). Sub-pixel rem variants in the codebase
+       (0.78–0.92rem at 13px base) collapse into the nearest token. */
+    --font-size-xs: 10px; /* caption / badge */
+    --font-size-sm: 11px; /* small UI label */
+    --font-size-base: 12px; /* default UI control */
+    --font-size-md: 13px; /* body text */
+    --font-size-lg: 16px; /* h3 / large heading */
+    --font-size-xl: 22px; /* hero heading */
+
+    /* ── Spacing scale (TKT-228)
+       4px base × multiplier. Token definitions only — most rules still
+       use raw px during the staged migration. */
+    --space-xxs: 2px;
+    --space-xs: 4px;
+    --space-sm: 8px;
+    --space: 12px;
+    --space-lg: 16px;
+    --space-xl: 20px;
+    --space-2xl: 28px;
+
+    /* ── Border-radius scale (TKT-228) */
+    --radius-xs: 2px;
+    --radius-sm: 3px;
+    --radius: 4px; /* default */
+    --radius-md: 5px;
+    --radius-lg: 6px;
+    --radius-xl: 10px;
+    --radius-pill: 999px;
+    --radius-circle: 50%;
+
+    /* ── Box-shadow scale (TKT-228)
+       Composed via `rgba(var(--shadow-rgb), <alpha>)` so dark theme
+       can swap shadow tint without re-declaring each shadow rule. */
+    --shadow-sm: 0 1px 2px rgba(var(--shadow-rgb), 0.08);
+    --shadow: 0 4px 12px rgba(var(--shadow-rgb), 0.12);
+    --shadow-lg:
+        0 24px 60px rgba(var(--shadow-rgb), 0.28),
+        0 4px 12px rgba(var(--shadow-rgb), 0.12);
+}
+
+/* ── Dark theme ────────────────────────────────────────────────────────
+   Activated by setting `data-theme="dark"` on <html> (see theme.js +
+   the inline FOUC-prevention snippet at the top of each HTML page).
+   Re-declares the same tokens, nothing else — all consumers continue
+   to resolve through `var(--*)`. */
+:root[data-theme="dark"] {
+    /* Neutrals — deep warm slate */
+    --bg: #181613;
+    --paper: #211e1a;
+    --paper-2: #2a2620;
+    --ink: #ece7da;
+    --muted: #9a9285;
+    --border: #3a3530;
+    --rule: rgba(236, 231, 218, 0.1);
+    --row-hover: rgba(96, 165, 250, 0.12);
+    --term-tab-hover: rgba(255, 255, 255, 0.06);
+    --term-tab-active: rgba(255, 255, 255, 0.1);
+
+    /* Accents — Catppuccin Mocha-ish; lifted for contrast on dark */
+    --red: #f38ba8;
+    --blue: #74c7ec;
+    --green: #a6e3a1;
+    --yellow: #f9e2af;
+    --peach: #fab387;
+    --mauve: #cba6f7;
+    --teal: #94e2d5;
+    --sapphire: #74c7ec;
+    --focus: rgba(116, 199, 236, 0.45);
+
+    /* Lifecycle pastels — re-balanced for dark backdrop. Backlog stays
+       deepest (the "haven't touched yet" reading); complete stays green;
+       the warm middle of the lifecycle stays in the orange→yellow ramp. */
+    --bucket-scratch: #5a5240;
+    --bucket-backlog: #6b6557;
+    --bucket-staging: #8a6a8a;
+    --bucket-stuck: var(--prio-high);
+    --bucket-building: var(--prio-medium);
+    --bucket-testing: #e88a3a;
+    --bucket-validating: #e6c83a;
+    --bucket-complete: #5da046;
+    --bucket-archive: #3f5e36;
+    --bucket-scratch-border: #8a8170;
+    --bucket-backlog-border: #968f80;
+    --bucket-staging-border: #b094b0;
+    --bucket-stuck-border: #ef4848;
+    --bucket-building-border: #f4a560;
+    --bucket-testing-border: #f4a560;
+    --bucket-validating-border: #f0d960;
+    --bucket-complete-border: #7fc66a;
+    --bucket-archive-border: #5b8a52;
+
+    /* Tokenized shadow base flips to true-black so drop-shadows survive
+       on a dark background. Backdrop alpha also bumps so modals still
+       feel modal. */
+    --shadow-rgb: 0, 0, 0;
+    --backdrop-rgb: 0, 0, 0;
+
+    /* Stack banner — amber-on-dark variant. Background goes deep, text
+       stays warm cream, border stays saturated amber so the experimental
+       warning still reads as a warning. */
+    --stack-banner-bg: #3a2a05;
+    --stack-banner-border: #f59e0b;
+    --stack-banner-text: #fde68a;
+    --stack-banner-btn-bg: #d97706;
+    --stack-banner-btn-fg: #1c1815;
+    --stack-banner-btn-bg-hover: #f59e0b;
+
+    /* Graph legend pastels — same hue, lower lightness, so they remain
+       visible against the dark page background but don't overpower
+       neighboring labels. */
+    --swatch-api-fill: #3b2d56;
+    --swatch-analytics-fill: #2a3a5c;
+    --swatch-bq-fill: #4a2e1a;
+    --swatch-sql-fill: #4a3a1a;
+    --swatch-specialized-fill: #2a4226;
+    --swatch-action-fill: #4a2828;
+    --swatch-utility-fill: #1f3a3c;
+}
+
+@media (prefers-color-scheme: dark) {
+    /* If the user hasn't picked a theme explicitly, follow the OS.
+       theme.js writes `data-theme` only once the user toggles, so the
+       absence of that attribute is what triggers this fallback. */
+    :root:not([data-theme]) {
+        --bg: #181613;
+        --paper: #211e1a;
+        --paper-2: #2a2620;
+        --ink: #ece7da;
+        --muted: #9a9285;
+        --border: #3a3530;
+        --rule: rgba(236, 231, 218, 0.1);
+        --row-hover: rgba(96, 165, 250, 0.12);
+        --term-tab-hover: rgba(255, 255, 255, 0.06);
+        --term-tab-active: rgba(255, 255, 255, 0.1);
+        --red: #f38ba8;
+        --blue: #74c7ec;
+        --green: #a6e3a1;
+        --yellow: #f9e2af;
+        --peach: #fab387;
+        --mauve: #cba6f7;
+        --teal: #94e2d5;
+        --sapphire: #74c7ec;
+        --focus: rgba(116, 199, 236, 0.45);
+        --bucket-scratch: #5a5240;
+        --bucket-backlog: #6b6557;
+        --bucket-staging: #8a6a8a;
+        --bucket-stuck: var(--prio-high);
+        --bucket-building: var(--prio-medium);
+        --bucket-testing: #e88a3a;
+        --bucket-validating: #e6c83a;
+        --bucket-complete: #5da046;
+        --bucket-archive: #3f5e36;
+        --bucket-scratch-border: #8a8170;
+        --bucket-backlog-border: #968f80;
+        --bucket-staging-border: #b094b0;
+        --bucket-stuck-border: #ef4848;
+        --bucket-building-border: #f4a560;
+        --bucket-testing-border: #f4a560;
+        --bucket-validating-border: #f0d960;
+        --bucket-complete-border: #7fc66a;
+        --bucket-archive-border: #5b8a52;
+        --shadow-rgb: 0, 0, 0;
+        --backdrop-rgb: 0, 0, 0;
+        --stack-banner-bg: #3a2a05;
+        --stack-banner-border: #f59e0b;
+        --stack-banner-text: #fde68a;
+        --stack-banner-btn-bg: #d97706;
+        --stack-banner-btn-fg: #1c1815;
+        --stack-banner-btn-bg-hover: #f59e0b;
+        --swatch-api-fill: #3b2d56;
+        --swatch-analytics-fill: #2a3a5c;
+        --swatch-bq-fill: #4a2e1a;
+        --swatch-sql-fill: #4a3a1a;
+        --swatch-specialized-fill: #2a4226;
+        --swatch-action-fill: #4a2828;
+        --swatch-utility-fill: #1f3a3c;
+    }
+}
+
+* {
+    box-sizing: border-box;
+}
+html {
+    scrollbar-gutter: stable;
+}
+html,
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 13px/1.45 var(--font-mono);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+body {
+    min-height: 100vh;
+}
+a {
+    color: inherit;
+    text-decoration: none;
+}
+a:hover {
+    color: color-mix(in oklch, var(--ink) 70%, transparent);
+}
+
+button,
+input,
+select,
+textarea {
+    font: inherit;
+    color: inherit;
+}
+:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+    border-radius: var(--radius-xs);
+}

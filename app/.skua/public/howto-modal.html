@@ -1,0 +1,226 @@
+<!-- How-to modal. Shared partial injected by server.ts at the
+     skua:howto-modal marker on every view. Hidden by default; toggled by
+     #howto-btn (in the shared navbar) and wired by howto.js. -->
+<div class="modal" id="howto-modal" hidden>
+    <div class="modal-backdrop" data-modal-close></div>
+    <div class="modal-card howto-card">
+        <header class="modal-head">
+            <h3>How to use this dashboard</h3>
+            <button
+                type="button"
+                class="close-btn"
+                data-modal-close
+                aria-label="Close"
+            >
+                ×
+            </button>
+        </header>
+
+        <div class="modal-body howto-body">
+            <section class="howto-section">
+                <h4 class="howto-h">Lifecycle</h4>
+                <ul class="howto-lifecycle">
+                    <li>
+                        <span
+                            class="ht-swatch"
+                            style="background: var(--yellow)"
+                        ></span
+                        ><strong>Scratch pad</strong> — ideas filed via
+                        <strong>+ New</strong>. Thin stubs; no body yet.
+                    </li>
+                    <li>
+                        <span
+                            class="ht-swatch"
+                            style="background: var(--bucket-backlog)"
+                        ></span
+                        ><strong>Backlog</strong> — promoted stubs with
+                        full Objective / Context / Acceptance Criteria.
+                    </li>
+                    <li>
+                        <span
+                            class="ht-swatch"
+                            style="background: var(--bucket-staging)"
+                        ></span
+                        ><strong>Staging</strong> — refined by AI,
+                        awaiting your approval. No code written yet.
+                    </li>
+                    <li>
+                        <span
+                            class="ht-swatch"
+                            style="background: var(--bucket-stuck)"
+                        ></span
+                        ><strong>Stuck</strong> — agentic flow is
+                        blocked: needs additional information or an
+                        approval before work can continue.
+                    </li>
+                    <li>
+                        <span
+                            class="ht-swatch"
+                            style="background: var(--bucket-building)"
+                        ></span
+                        ><strong>Building</strong> — implementation in
+                        progress.
+                    </li>
+                    <li>
+                        <span
+                            class="ht-swatch"
+                            style="background: var(--bucket-validating)"
+                        ></span
+                        ><strong>Validating</strong> — build complete;
+                        awaiting review / QA.
+                    </li>
+                    <li>
+                        <span
+                            class="ht-swatch"
+                            style="background: var(--bucket-complete)"
+                        ></span
+                        ><strong>Complete</strong> — accepted.
+                        Auto-archived after 7 days.
+                    </li>
+                </ul>
+            </section>
+
+            <section class="howto-section">
+                <h4 class="howto-h">What the skill does</h4>
+                <p class="howto-p">
+                    The <code>ticket-manager</code> skill owns the full
+                    <code>.tickets/</code> lifecycle — creating,
+                    refining, moving, and archiving tickets, and keeping
+                    <code>TaskBoard.md</code> in sync after every
+                    operation.
+                </p>
+                <p class="howto-p">
+                    The dashboard UI and the AI agent write to the same
+                    ticket files — there is no separate state. Core ops:
+                    <code>create-ticket</code>,
+                    <code>promote-from-scratch</code>,
+                    <code>refine-from-backlog</code>,
+                    <code>build-ticket</code>, <code>move-ticket</code>,
+                    <code>link-tickets</code>.
+                </p>
+            </section>
+
+            <section class="howto-section">
+                <h4 class="howto-h">Example ticket flow</h4>
+                <ol class="howto-ol">
+                    <li>
+                        Click <strong>+ New</strong> → stub lands in
+                        <em>Scratch pad</em>.
+                    </li>
+                    <li>
+                        <code>promote TKT-NNN</code> → AI greps
+                        codebase, writes body, moves to
+                        <em>Backlog</em>.
+                    </li>
+                    <li>
+                        <code>pick up TKT-NNN</code> → AI refines for
+                        build-readiness, moves to <em>Staging</em>.
+                        <strong>No code yet.</strong>
+                    </li>
+                    <li>
+                        Review the staged ticket, then:
+                        <code>build TKT-NNN</code> → moves to
+                        <em>Building</em>, implementation begins.
+                    </li>
+                    <li>
+                        Implementation done → ticket auto-moves to
+                        <em>Validating</em>.
+                    </li>
+                    <li>
+                        Accept → <code>move TKT-NNN to complete</code>.
+                    </li>
+                    <li>
+                        7 days later → auto-archived to
+                        <em>7-archive</em>.
+                    </li>
+                </ol>
+            </section>
+
+            <section class="howto-section">
+                <h4 class="howto-h">Example prompts</h4>
+                <ul class="howto-prompts">
+                    <li>
+                        <code class="howto-prompt"
+                            >create a ticket to [describe feature]</code
+                        >
+                        <span class="howto-prompt-desc"
+                            >Files a new ticket in backlog with full
+                            context gathered from the codebase.</span
+                        >
+                    </li>
+                    <li>
+                        <code class="howto-prompt"
+                            >promote TKT-NNN</code
+                        >
+                        <span class="howto-prompt-desc"
+                            >Expands a scratch stub into a full backlog
+                            ticket.</span
+                        >
+                    </li>
+                    <li>
+                        <code class="howto-prompt"
+                            >pick up TKT-NNN</code
+                        >
+                        <span class="howto-prompt-desc"
+                            >Refines a backlog ticket and moves to
+                            staging. <strong>Does NOT build</strong> —
+                            you must approve first.</span
+                        >
+                    </li>
+                    <li>
+                        <code class="howto-prompt">build TKT-NNN</code>
+                        <span class="howto-prompt-desc"
+                            >Implements a staged ticket and moves it to
+                            validating when done.</span
+                        >
+                    </li>
+                    <li>
+                        <code class="howto-prompt"
+                            >what's on the board?</code
+                        >
+                        <span class="howto-prompt-desc"
+                            >Refreshes TaskBoard.md and shows the
+                            current state of all tickets.</span
+                        >
+                    </li>
+                    <li>
+                        <code class="howto-prompt"
+                            >move TKT-NNN to validating</code
+                        >
+                        <span class="howto-prompt-desc"
+                            >Manually advances (or reverses) a ticket to
+                            any lifecycle stage.</span
+                        >
+                    </li>
+                    <li>
+                        <code class="howto-prompt"
+                            >TKT-NNN depends on TKT-MMM</code
+                        >
+                        <span class="howto-prompt-desc"
+                            >Creates a dependency link visible in the
+                            graphs view.</span
+                        >
+                    </li>
+                </ul>
+                <div class="howto-callout">
+                    ⚠ <strong>Staging gate:</strong>
+                    <code>pick up TKT-NNN</code> refines and stages only
+                    — it does <strong>not</strong> write any code. Say
+                    <code>build TKT-NNN</code> (or <code>ship it</code>)
+                    to advance to building. This gives you a review
+                    window before implementation starts.
+                </div>
+            </section>
+        </div>
+
+        <footer class="modal-foot">
+            <button
+                type="button"
+                class="btn btn--secondary"
+                data-modal-close
+            >
+                Close
+            </button>
+        </footer>
+    </div>
+</div>

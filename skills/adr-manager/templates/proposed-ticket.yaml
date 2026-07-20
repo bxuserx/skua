@@ -1,0 +1,9 @@
+# Schema for one entry in proposed_tickets[]. Decompose the ADR's
+# Consequences into 2–6 atomic, build-ready tickets ordered by dependency
+# (DRAFT-1 typically has depends_on: []). Each entry one PR's worth of
+# work; split if > 1 week.
+
+- draft_id: DRAFT-1
+  title: "<short, imperative>"
+  domain: <inherit from ADR unless specifically different>
+  depends_on: [DRAFT-N, ...]  # sibling drafts in this ADR; or TKT-NNN for existing

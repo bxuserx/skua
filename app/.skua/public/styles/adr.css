@@ -1,0 +1,1156 @@
+/* =========================================================================
+ * ADR pages — list (/adrs) + detail (/adrs/:id).
+ *
+ * Status colors are CATEGORICAL (proposed/accepted/rejected/superseded/
+ * deprecated), distinct from --bucket-* (which is ordinal). Hard rule from
+ * ADR-001 §D9: do NOT reuse --bucket-* tokens here — the two surfaces share
+ * the dashboard chrome and visual collision would confuse readers.
+ * ========================================================================= */
+
+:root {
+    --adr-proposed: #d4a64a;
+    --adr-accepted: #4caf6f;
+    --adr-rejected: #c9534a;
+    --adr-superseded: #8a8a8a;
+    --adr-deprecated: #8a8a8a;
+}
+
+/* Page is full-width with side gutters; only the list rows below are
+ * constrained to a comfortable reading width. Lets the top toolbar
+ * (H1 + filter + Create button) breathe across the viewport. */
+main.adrs-page {
+    margin: 1.5rem 0;
+    padding: 0 2rem;
+}
+
+.adrs-toolbar {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.adrs-toolbar h1 {
+    margin: 0;
+    font-size: 1.5rem;
+}
+
+.adrs-filter label {
+    margin-right: 0.5rem;
+    font-size: 0.9rem;
+    opacity: 0.8;
+}
+
+.adrs-filter select {
+    background: var(--paper);
+    color: var(--ink);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 4px 8px;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-base);
+    cursor: pointer;
+}
+.adrs-filter select:hover,
+.adrs-filter select:focus {
+    border-color: var(--accent);
+    outline: none;
+}
+
+.adrs-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-width: 960px;
+    margin: 0 auto;
+}
+
+.adrs-empty {
+    text-align: center;
+    opacity: 0.7;
+    padding: 2rem;
+}
+
+.adrs-empty.error {
+    color: var(--prio-high, #c9534a);
+}
+
+.adr-row {
+    display: block;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--border, rgba(0, 0, 0, 0.1));
+    border-radius: var(--radius-lg);
+    text-decoration: none;
+    color: inherit;
+    background: var(--bg-card, transparent);
+    transition:
+        background 0.1s,
+        border-color 0.1s;
+}
+
+.adr-row:hover {
+    background: var(--bg-hover, rgba(0, 0, 0, 0.03));
+    border-color: var(--border-strong, rgba(0, 0, 0, 0.2));
+}
+
+.adr-row-head {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    margin-bottom: 0.25rem;
+}
+
+.adr-id {
+    font-family: ui-monospace, monospace;
+    font-size: 0.9rem;
+    opacity: 0.7;
+    min-width: 4.5rem;
+}
+
+.adr-title {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-weight: 600;
+    flex: 1;
+}
+
+.adr-status {
+    display: inline-block;
+    padding: 0.1rem 0.5rem;
+    border-radius: var(--radius-pill);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+    color: #fff;
+}
+
+.adr-status-proposed {
+    background: var(--adr-proposed);
+    color: #2a1d00;
+}
+.adr-status-accepted {
+    background: var(--adr-accepted);
+}
+.adr-status-rejected {
+    background: var(--adr-rejected);
+}
+.adr-status-superseded {
+    background: var(--adr-superseded);
+}
+.adr-status-deprecated {
+    background: var(--adr-deprecated);
+    text-decoration: line-through;
+}
+
+.adr-row-meta {
+    font-size: 0.85rem;
+    opacity: 0.7;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    align-items: center;
+}
+
+.adr-row-meta .dot {
+    opacity: 0.5;
+}
+.adr-row-meta .adr-domain {
+    font-family: ui-monospace, monospace;
+    font-size: 0.8rem;
+}
+
+/* Detail view ----------------------------------------------------------- */
+
+main.adr-page {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 280px;
+    gap: 1.5rem;
+    max-width: 1200px;
+    margin: 1.5rem auto;
+    padding: 0 1rem;
+}
+
+@media (max-width: 800px) {
+    main.adr-page {
+        grid-template-columns: 1fr;
+    }
+}
+
+.adr-body {
+    min-width: 0;
+}
+
+.adr-body h1 {
+    margin: 0 0 1rem;
+    font-size: 1.5rem;
+}
+
+.adr-title-h1 {
+    font-weight: 500;
+    opacity: 0.85;
+}
+
+.adr-md h3,
+.adr-md h4 {
+    margin-top: 1.5rem;
+}
+.adr-md pre {
+    background: var(--bg-code, rgba(0, 0, 0, 0.05));
+    padding: 0.75rem;
+    border-radius: var(--radius);
+    overflow-x: auto;
+    font-size: 0.85rem;
+}
+.adr-md code {
+    font-family: ui-monospace, monospace;
+    font-size: 0.9em;
+}
+.adr-md p code {
+    background: var(--bg-code, rgba(0, 0, 0, 0.05));
+    padding: 0.05em 0.3em;
+    border-radius: var(--radius-sm);
+}
+.adr-md table {
+    border-collapse: collapse;
+    margin: 0.5rem 0 1rem;
+    font-size: 0.9rem;
+}
+.adr-md th,
+.adr-md td {
+    padding: 0.4rem 0.6rem;
+    border: 1px solid var(--border, rgba(0, 0, 0, 0.15));
+    text-align: left;
+    vertical-align: top;
+}
+.adr-md th {
+    background: var(--bg-table-head, rgba(0, 0, 0, 0.04));
+    font-weight: 600;
+}
+
+.adr-side {
+    border-left: 1px solid var(--border, rgba(0, 0, 0, 0.1));
+    padding-left: 1rem;
+}
+
+.adr-side section {
+    margin-bottom: 1.5rem;
+}
+.adr-side h3 {
+    margin: 0 0 0.5rem;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    opacity: 0.7;
+}
+.adr-side p {
+    margin: 0.25rem 0;
+}
+.adr-meta-line {
+    font-size: 0.85rem;
+}
+
+.adr-status-box {
+    margin: 0.5rem 0;
+}
+
+.adr-transitions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin: 0.5rem 0;
+}
+
+.adr-drafts {
+    margin: 0.25rem 0;
+    padding-left: 1rem;
+    font-size: 0.85rem;
+}
+.adr-drafts li {
+    margin-bottom: 0.25rem;
+}
+.adr-drafts code {
+    font-family: ui-monospace, monospace;
+    font-size: 0.85em;
+    background: var(--bg-code, rgba(0, 0, 0, 0.05));
+    padding: 0.05em 0.3em;
+    border-radius: var(--radius-sm);
+}
+
+/* =========================================================================
+ * ADR UI polish (TKT-216) — modal + visual hierarchy upgrades.
+ * Adds <dialog>-based transition modal, status icon prefixes, card-style
+ * list rows, side-panel section accent.
+ * ========================================================================= */
+
+/* ---- Status pill icon prefixes (visual at-a-glance status) ------------- */
+
+.adr-status::before {
+    margin-right: 0.3em;
+    font-weight: 700;
+    opacity: 0.9;
+}
+.adr-status-proposed::before {
+    content: "◯";
+}
+.adr-status-accepted::before {
+    content: "✓";
+}
+.adr-status-rejected::before {
+    content: "✗";
+}
+.adr-status-superseded::before {
+    content: "⊘";
+}
+.adr-status-deprecated::before {
+    content: "✕";
+}
+
+/* ---- List rows: card affordance + lift on hover ------------------------ */
+
+.adr-row {
+    box-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.04),
+        0 0 0 1px var(--border, rgba(0, 0, 0, 0.08));
+    border: none;
+    transition:
+        box-shadow 0.12s ease,
+        transform 0.12s ease,
+        background 0.12s ease;
+}
+
+.adr-row:hover {
+    box-shadow:
+        0 4px 12px rgba(0, 0, 0, 0.08),
+        0 0 0 1px var(--border-strong, rgba(0, 0, 0, 0.18));
+    transform: translateY(-1px);
+}
+
+.adr-row-head {
+    margin-bottom: 0.4rem;
+}
+
+.adr-title {
+    font-size: 1.02rem;
+    font-weight: 600;
+}
+
+.adr-row-meta {
+    font-size: 0.8rem;
+    color: var(--muted, rgba(0, 0, 0, 0.55));
+}
+
+/* ---- Side panel section accent (left-border + smaller caps header) ----- */
+
+.adr-side {
+    border-left-width: 2px;
+    border-left-color: var(--border, rgba(0, 0, 0, 0.1));
+}
+
+.adr-side section {
+    border-left: 3px solid var(--border, rgba(0, 0, 0, 0.08));
+    padding-left: 0.75rem;
+    margin-left: -0.25rem;
+    transition: border-left-color 0.12s ease;
+}
+
+.adr-side section:hover {
+    border-left-color: var(--adr-accepted, #4caf6f);
+}
+
+.adr-side h3 {
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 700;
+    opacity: 0.6;
+    margin: 0 0 0.4rem;
+}
+
+.adr-meta-line {
+    font-size: 0.82rem;
+}
+
+/* ---- Body H1 differentiation ------------------------------------------- */
+
+.adr-body h1 {
+    border-bottom: 1px solid var(--border, rgba(0, 0, 0, 0.1));
+    padding-bottom: 0.5rem;
+}
+
+/* ---- Transition modal (<dialog>) --------------------------------------- */
+
+.adr-modal {
+    border: none;
+    padding: 0;
+    border-radius: 8px;
+    box-shadow:
+        0 24px 60px rgba(0, 0, 0, 0.28),
+        0 4px 12px rgba(0, 0, 0, 0.12);
+    background: var(--bg-card, var(--bg, #faf8f3));
+    color: inherit;
+    max-width: 480px;
+    width: calc(100% - 2rem);
+}
+
+.adr-modal::backdrop {
+    background: rgba(15, 15, 15, 0.42);
+    backdrop-filter: blur(2px);
+}
+
+.adr-modal-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.adr-modal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border, rgba(0, 0, 0, 0.1));
+}
+
+.adr-modal-head h2 {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 600;
+}
+
+.adr-modal-body {
+    padding: 1rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.adr-modal-subhead {
+    margin: 0 0 0.3rem;
+    font-size: 0.88rem;
+    opacity: 0.78;
+    line-height: 1.45;
+}
+
+.adr-modal-label {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+    opacity: 0.7;
+}
+
+.adr-modal-body input[type="text"] {
+    padding: 0.55rem 0.7rem;
+    border: 1px solid var(--border-strong, rgba(0, 0, 0, 0.2));
+    border-radius: var(--radius-md);
+    background: var(--bg, transparent);
+    color: inherit;
+    font-size: 0.92rem;
+    font-family: inherit;
+    transition:
+        border-color 0.1s,
+        box-shadow 0.1s;
+}
+
+.adr-modal-body input[type="text"]:focus {
+    outline: none;
+    border-color: var(--adr-accepted, #4caf6f);
+    box-shadow: 0 0 0 3px rgba(76, 175, 111, 0.18);
+}
+
+.adr-modal-error {
+    margin: 0.3rem 0 0;
+    padding: 0.5rem 0.7rem;
+    background: rgba(201, 83, 74, 0.1);
+    border-left: 3px solid var(--adr-rejected, #c9534a);
+    color: var(--adr-rejected, #c9534a);
+    font-size: 0.85rem;
+    border-radius: var(--radius);
+}
+
+.adr-modal-foot {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding: 0.85rem 1.25rem;
+    border-top: 1px solid var(--border, rgba(0, 0, 0, 0.1));
+    background: var(--bg-table-head, rgba(0, 0, 0, 0.02));
+}
+
+/* ADR graph legend swatches (TKT-218) — mirrors the per-status palette
+ * defined in graphs.js (C_LIGHT.adr* / C_DARK.adr*). Light values match
+ * the --adr-* tokens from TKT-208; dark theme uses dimmer fills.
+ */
+.legend .sw.adr-proposed {
+    background: var(--adr-proposed-fill, #f8e8c0);
+    border-color: var(--adr-proposed);
+}
+.legend .sw.adr-accepted {
+    background: var(--adr-accepted-fill, #d6f0df);
+    border-color: var(--adr-accepted);
+}
+.legend .sw.adr-rejected {
+    background: var(--adr-rejected-fill, #f4d0cd);
+    border-color: var(--adr-rejected);
+}
+.legend .sw.adr-superseded {
+    background: var(--adr-superseded-fill, #dcdcdc);
+    border-color: var(--adr-superseded);
+    opacity: 0.75;
+}
+.legend .sw.adr-draft {
+    background: var(--adr-draft-fill, #f1f3f4);
+    border: 1px dashed var(--adr-draft-border, #9aa0a6);
+}
+.legend .sw.adr-materialized {
+    background: var(--swatch-analytics-fill, #dde6fb);
+    border-color: var(--blue);
+}
+.legend .ln.adr-proposes {
+    border-top: 1.5px dashed var(--muted);
+}
+.legend .ln.adr-implements {
+    border-top: 1.5px solid var(--adr-accepted);
+}
+.legend .ln.adr-materialized-from {
+    border-top: 1.5px dotted var(--blue);
+}
+.legend .ln.adr-supersedes {
+    border-top: 2px solid var(--adr-rejected);
+}
+
+/* ADR-* fill tokens for the swatches — light. Dark theme overrides below. */
+:root {
+    --adr-proposed-fill: #f8e8c0;
+    --adr-accepted-fill: #d6f0df;
+    --adr-rejected-fill: #f4d0cd;
+    --adr-superseded-fill: #dcdcdc;
+    --adr-draft-fill: #f1f3f4;
+    --adr-draft-border: #9aa0a6;
+}
+:root[data-theme="dark"] {
+    --adr-proposed-fill: #4a3a1a;
+    --adr-accepted-fill: #1d3a25;
+    --adr-rejected-fill: #3f1f1c;
+    --adr-superseded-fill: #33312d;
+    --adr-draft-fill: #2c2926;
+    --adr-draft-border: #7a7a7a;
+}
+
+/* ADR detail-view toolbar (TKT-219 follow-on): a single close button
+ * routing back to /adrs. Mirrors .ticket-toolbar shape; reuses the
+ * .ticket-close visual style verbatim.
+ */
+.adr-page .toolbar {
+    display: flex;
+    align-items: center;
+    padding: 8px 20px;
+    background: var(--paper);
+    border-bottom: 1px solid var(--rule);
+    position: sticky;
+    top: 44px;
+    z-index: 99;
+}
+.adr-page .toolbar .ticket-close {
+    margin-left: 12px;
+}
+.adr-page .toolbar #adr-delete-btn {
+    margin-left: auto;
+}
+
+/* ============================================================
+ * TKT-219: ADR create form + section visual distinction.
+ * ============================================================ */
+
+/* --- List-view toolbar layout (room for the Create button) -------------- */
+
+.adrs-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+/* --- Wider modal variant for the create form --------------------------- */
+
+.adr-modal-wide {
+    max-width: min(1080px, 94vw);
+    width: min(1080px, 94vw);
+}
+
+.adr-create-body {
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+/* --- Collapsible field groups inside the create form ------------------ */
+
+.adr-form-accordion {
+    border: 1px solid var(--border, rgba(0, 0, 0, 0.1));
+    border-radius: var(--radius-lg);
+    padding: 0;
+    margin: 0.4rem 0 0.75rem;
+    background: var(--bg-section, rgba(0, 0, 0, 0.02));
+}
+
+.adr-form-accordion > summary {
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+    padding: 0.55rem 0.85rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    opacity: 0.85;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.adr-form-accordion > summary::-webkit-details-marker {
+    display: none;
+}
+
+.adr-form-accordion > summary::before {
+    content: "▸";
+    display: inline-block;
+    font-size: 0.7em;
+    opacity: 0.6;
+    transition: transform 0.12s ease;
+}
+
+.adr-form-accordion[open] > summary::before {
+    transform: rotate(90deg);
+}
+
+.adr-form-accordion[open] > summary {
+    border-bottom: 1px solid var(--border, rgba(0, 0, 0, 0.08));
+    margin-bottom: 0.5rem;
+}
+
+.adr-form-accordion > .adr-form-grid,
+.adr-form-accordion > .adr-form-field {
+    padding: 0 0.85rem 0.6rem;
+    margin: 0;
+}
+
+.adr-form-accordion-nested {
+    background: transparent;
+    border-style: dashed;
+    margin-top: 0.6rem;
+}
+
+/* --- Form grid (title / domain / complexity / etc.) -------------------- */
+
+.adr-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem 1rem;
+    margin-bottom: 0.75rem;
+}
+
+.adr-form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    margin-bottom: 0.5rem;
+}
+
+.adr-form-field-wide {
+    grid-column: 1 / -1;
+}
+
+.adr-form-field label {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+    opacity: 0.7;
+}
+
+.adr-form-field label small {
+    text-transform: none;
+    letter-spacing: 0;
+    opacity: 0.85;
+    font-weight: 400;
+    margin-left: 0.3rem;
+}
+
+.adr-form-field .req {
+    color: var(--adr-rejected, #c9534a);
+    margin-left: 0.15rem;
+}
+
+.adr-form-field input[type="text"],
+.adr-form-field select,
+.adr-form-field textarea {
+    padding: 0.5rem 0.65rem;
+    border: 1px solid var(--border-strong, rgba(0, 0, 0, 0.2));
+    border-radius: var(--radius-md);
+    background: var(--bg, transparent);
+    color: inherit;
+    font-size: 0.92rem;
+    font-family: inherit;
+    transition:
+        border-color 0.1s,
+        box-shadow 0.1s;
+}
+
+.adr-form-field textarea {
+    resize: vertical;
+    min-height: 4em;
+    line-height: 1.45;
+    font-family: ui-monospace, monospace;
+    font-size: 0.85rem;
+}
+
+.adr-form-field input[type="text"]:focus,
+.adr-form-field select:focus,
+.adr-form-field textarea:focus {
+    outline: none;
+    border-color: var(--adr-accepted, #4caf6f);
+    box-shadow: 0 0 0 3px rgba(76, 175, 111, 0.18);
+}
+
+/* --- ADR detail-view section blocks ------------------------------------ */
+
+.adr-md .adr-section {
+    background: var(--bg-section, rgba(0, 0, 0, 0.025));
+    border: 1px solid var(--border, rgba(0, 0, 0, 0.08));
+    border-left-width: 4px;
+    border-left-color: var(--border-strong, rgba(0, 0, 0, 0.18));
+    border-radius: var(--radius-lg);
+    padding: 0.75rem 1rem 0.8rem;
+    margin: 0.55rem 0;
+}
+
+.adr-md .adr-section:first-child {
+    margin-top: 0.3rem;
+}
+
+.adr-md .adr-section-h {
+    margin: 0 0 0.6rem;
+    padding-bottom: 0.35rem;
+    border-bottom: 1px solid var(--border, rgba(0, 0, 0, 0.08));
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+}
+
+.adr-md .adr-section p,
+.adr-md .adr-section ul,
+.adr-md .adr-section table {
+    margin-top: 0.4rem;
+    margin-bottom: 0.4rem;
+}
+
+.adr-md .adr-section p:last-child,
+.adr-md .adr-section ul:last-child {
+    margin-bottom: 0;
+}
+
+/* Per-section accents: ONLY the left-border color + heading text color
+ * differentiate sections. Background stays uniform across all sections
+ * (inherited from the base `.adr-md .adr-section` rule above) per user
+ * feedback after TKT-219 shipped — the per-section bg tints were too
+ * noisy. Border-left + colored header label still give each block a
+ * clear visual identity. */
+
+.adr-md .adr-section-tldr,
+.adr-md .adr-section-tl-dr {
+    border-left-color: #e07a2a;
+}
+
+.adr-md .adr-section-decision {
+    border-left-color: var(--adr-accepted, #4caf6f);
+}
+
+.adr-md .adr-section-context {
+    border-left-color: #6c8ec7;
+}
+
+.adr-md .adr-section-consequences {
+    border-left-color: #c7956c;
+}
+
+.adr-md .adr-section-alternatives-considered {
+    border-left-color: var(--adr-superseded, #8a8a8a);
+}
+
+.adr-md .adr-section-revision-log {
+    border-style: dashed;
+    border-left-color: #4a78c7;
+}
+
+/* Ticket section slugs — same chrome as ADR sections; one accent per
+ * canonical section name so the colored left border carries meaning. */
+.adr-md .adr-section-objective {
+    border-left-color: var(--adr-accepted, #4caf6f);
+}
+.adr-md .adr-section-feasibility {
+    border-left-color: #6c8ec7;
+}
+.adr-md .adr-section-acceptance-criteria {
+    border-left-color: #e07a2a;
+}
+.adr-md .adr-section-out-of-scope {
+    border-left-color: var(--adr-superseded, #8a8a8a);
+}
+.adr-md .adr-section-notes {
+    border-left-color: #8a6ec7;
+}
+.adr-md .adr-section-implementation-summary {
+    border-left-color: var(--peach, #fe640b);
+}
+.adr-md .adr-section-relationships-tags {
+    border-left-color: #c7956c;
+}
+
+/* --- Version dropdown + snapshot banner ------------------------------- */
+
+.adr-version-select {
+    width: 100%;
+    padding: 0.35rem 0.5rem;
+    font-size: 0.85rem;
+    border: 1px solid var(--border, rgba(0, 0, 0, 0.15));
+    border-radius: var(--radius);
+    background: var(--paper, #faf8f3);
+    color: var(--ink, #15130f);
+}
+
+.adr-version-banner {
+    background: var(--bg-section, rgba(255, 200, 80, 0.15));
+    border: 1px solid var(--peach, #fe640b);
+    border-radius: var(--radius);
+    padding: 0.55rem 0.85rem;
+    margin: 0 0 1rem;
+    font-size: 0.88rem;
+}
+
+.adr-version-banner a {
+    margin-left: 0.5rem;
+    text-decoration: underline;
+}
+
+/* --- Comments rendered from comments.jsonl --------------------------- */
+
+.adr-comments-body {
+    padding-top: 0.2rem;
+}
+
+.adr-comment {
+    padding: 0.5rem 0;
+    border-bottom: 1px dashed var(--border, rgba(0, 0, 0, 0.08));
+}
+.adr-comment:last-child {
+    border-bottom: none;
+}
+
+.adr-comment-head {
+    display: flex;
+    align-items: baseline;
+    gap: 0.4rem;
+    margin-bottom: 0.2rem;
+    font-size: 0.85rem;
+}
+
+.adr-comment-author {
+    color: var(--yellow, #df8e1d);
+    font-weight: 600;
+}
+
+.adr-comment-date {
+    opacity: 0.7;
+}
+
+.adr-comment-version {
+    margin-left: auto;
+    font-size: 0.72rem;
+    background: var(--bg-section, rgba(0, 0, 0, 0.06));
+    padding: 0.05rem 0.4rem;
+    border-radius: var(--radius-sm);
+    opacity: 0.75;
+    font-family: ui-monospace, monospace;
+}
+
+.adr-comment-text {
+    font-size: 0.92rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+}
+
+/* --- References list ------------------------------------------------- */
+
+.adr-refs-list {
+    list-style: none;
+    padding-left: 0;
+    margin: 0.2rem 0 0;
+}
+
+.adr-refs-list li {
+    padding: 0.25rem 0;
+    border-bottom: 1px dashed var(--border, rgba(0, 0, 0, 0.06));
+    font-size: 0.9rem;
+}
+.adr-refs-list li:last-child {
+    border-bottom: none;
+}
+.adr-refs-list small {
+    opacity: 0.6;
+    margin-left: 0.4rem;
+}
+
+/* Dark-theme background for sections defaults to subtle dim */
+:root[data-theme="dark"] .adr-md .adr-section {
+    --bg-section: rgba(255, 255, 255, 0.03);
+}
+
+/* ============================================================
+ * TKT-220: ADR sections as <details> accordions; Decision splits
+ * into 4 H4 sub-categories rendered as nested <details>.
+ * Overrides the TKT-219 .adr-section block-element rules so the
+ * same selectors now target <details> elements. Same color tints.
+ * ============================================================ */
+
+.adr-md details.adr-section {
+    /* Inherits all the .adr-section styles from TKT-219 — colors,
+     * padding, border-left accents. Just needs accordion-specific
+     * overrides.
+     */
+}
+
+.adr-md details.adr-section > summary.adr-section-h {
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0;
+    padding: 0;
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.adr-md details.adr-section[open] > summary.adr-section-h {
+    margin-bottom: 0.6rem;
+    padding-bottom: 0.35rem;
+    border-bottom: 1px solid var(--border, rgba(0, 0, 0, 0.08));
+}
+
+.adr-md details.adr-section > summary.adr-section-h::-webkit-details-marker {
+    display: none;
+}
+
+.adr-md details.adr-section > summary.adr-section-h::before {
+    content: "▸";
+    display: inline-block;
+    font-size: 0.7em;
+    opacity: 0.55;
+    transition: transform 0.12s ease;
+    transform-origin: center;
+}
+
+.adr-md details.adr-section[open] > summary.adr-section-h::before {
+    transform: rotate(90deg);
+}
+
+.adr-md details.adr-section > summary.adr-section-h:hover::before {
+    opacity: 0.9;
+}
+
+/* --- Nested H4 sub-sections inside a Decision (or any) section -------- */
+
+.adr-md details.adr-subsection {
+    background: rgba(0, 0, 0, 0.03);
+    border: 1px solid var(--border, rgba(0, 0, 0, 0.06));
+    border-radius: var(--radius);
+    padding: 0.55rem 0.8rem 0.6rem;
+    margin: 0.5rem 0;
+}
+
+:root[data-theme="dark"] .adr-md details.adr-subsection {
+    background: rgba(255, 255, 255, 0.025);
+}
+
+.adr-md details.adr-subsection > summary.adr-subsection-h {
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    opacity: 1;
+    text-transform: none;
+}
+
+.adr-md details.adr-subsection[open] > summary.adr-subsection-h {
+    margin-bottom: 0.35rem;
+}
+
+.adr-md
+    details.adr-subsection
+    > summary.adr-subsection-h::-webkit-details-marker {
+    display: none;
+}
+
+.adr-md details.adr-subsection > summary.adr-subsection-h::before {
+    content: "▸";
+    display: inline-block;
+    font-size: 0.65em;
+    opacity: 0.45;
+    transition: transform 0.12s ease;
+    transform-origin: center;
+}
+
+.adr-md details.adr-subsection[open] > summary.adr-subsection-h::before {
+    transform: rotate(90deg);
+}
+
+.adr-md details.adr-subsection p,
+.adr-md details.adr-subsection ul {
+    margin-top: 0.3rem;
+    margin-bottom: 0.3rem;
+    font-size: 0.92em;
+}
+
+/* --- Create form: fieldset wrapping the Decision sub-fields ----------- */
+
+.adr-form-fieldset {
+    border: 1px solid var(--border-strong, rgba(0, 0, 0, 0.18));
+    border-radius: var(--radius-lg);
+    padding: 0.85rem 1rem 0.5rem;
+    margin: 0.25rem 0 0.6rem;
+    background: var(--bg-section, rgba(0, 0, 0, 0.02));
+}
+
+:root[data-theme="dark"] .adr-form-fieldset {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.adr-form-fieldset > legend {
+    padding: 0 0.4rem;
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 700;
+    opacity: 0.8;
+    color: var(--adr-accepted, #4caf6f);
+}
+
+.adr-form-fieldset-hint {
+    margin: 0 0 0.6rem;
+    font-size: 0.8rem;
+    opacity: 0.75;
+    line-height: 1.45;
+}
+
+/* ============================================================
+ * TKT-221: Comments section accent + side-panel "+ Add comment" button.
+ * ============================================================ */
+
+.adr-md .adr-section-comments {
+    border-left-color: #8a6ec7; /* muted purple — conversational, not load-bearing */
+}
+
+/* Each appended comment renders as a paragraph starting with bold
+ * "YYYY-MM-DD — Author:". Bump the spacing a touch so comments don't
+ * collide visually. */
+.adr-md .adr-section-comments p {
+    padding: 0.35rem 0;
+    border-bottom: 1px dashed var(--border, rgba(0, 0, 0, 0.06));
+}
+.adr-md .adr-section-comments p:last-child {
+    border-bottom: none;
+}
+
+/* Side-panel "+ Add comment" button: subtle bordered pill, matches the
+ * scratch-pad-btn convention but lighter (it's an inline action, not a
+ * primary CTA). */
+.adr-add-comment-btn {
+    display: inline-block;
+    margin-left: auto;
+    padding: 0.2rem 0.6rem;
+    border: 1px solid var(--border-strong, rgba(0, 0, 0, 0.2));
+    border-radius: var(--radius);
+    background: var(--bg-card, transparent);
+    color: inherit;
+    font-size: 0.78rem;
+    font-weight: 400;
+    font-family: inherit;
+    cursor: pointer;
+    transition:
+        background 0.1s,
+        border-color 0.1s,
+        color 0.1s;
+}
+.adr-add-comment-btn:hover {
+    background: var(--bg-hover, rgba(0, 0, 0, 0.05));
+    border-color: #8a6ec7;
+    color: #5a4690;
+}
+:root[data-theme="dark"] .adr-add-comment-btn:hover {
+    color: #b8a4e0;
+}
+
+.adr-md .adr-comment-author {
+    font-weight: 700;
+}
+.adr-md .adr-comment-date {
+    font-weight: 400;
+    font-size: 0.85em;
+    opacity: 0.75;
+}
+
+/* ============================================================
+ * Ticket detail-view: body sections rendered as ADR-style
+ * accordions. Reuses `.adr-md` + `.adr-section` chrome so the
+ * tickets and ADRs share visual language. Each section's
+ * <textarea> autosizes to its content.
+ * ============================================================ */
+
+/* Block layout (not flex) so the section margins collapse the same way
+ * they do in the ADR detail view — otherwise flex breaks margin collapse
+ * and the visual gaps end up doubled. */
+.ticket-body-sections {
+    display: block;
+}
+
+.ticket-body-sections .ticket-section-textarea {
+    width: 100%;
+    box-sizing: border-box;
+    background: transparent;
+    color: var(--ink);
+    border: 0;
+    padding: 0;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-base);
+    line-height: 1.5;
+    min-height: 0;
+    resize: vertical;
+    overflow: hidden;
+    display: block;
+}
+
+.ticket-body-sections .ticket-section-textarea:focus {
+    outline: none;
+    box-shadow: none;
+}
+
+/* Preamble textarea (any content before the first ###) sits flush above
+ * the first accordion. Give it a faint left rule so an empty preamble is
+ * still discoverable as an input, but no boxed chrome. */
+.ticket-body-sections > textarea.ticket-section-textarea {
+    margin: 0 0 8px;
+}
+
+/* The textarea inside an accordion section sits inside the existing
+ * .adr-section padding, flush against the section body — no extra box. */
+.ticket-body-sections details.adr-section > .ticket-section-textarea {
+    margin-top: 0;
+}

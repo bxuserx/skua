@@ -1,0 +1,264 @@
+/* ── Project search (⌘⇧F) ───────────────────────────────────────────────────
+   A "Search" tab in the terminal sidebar whose stage iframe is search.html (a
+   self-contained project-search results view). Two surfaces: (1) the search tab
+   in the sidebar list, (2) the search page itself. Tokens come from tokens.css. */
+
+/* Sidebar: the search tab's magnifier glyph + the collapsed-rail Search button. */
+.term-item-search-glyph {
+    flex: 0 0 auto;
+    color: var(--accent);
+}
+main.terminal-page.sidebar-collapsed #term-search-new {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    font-size: 1.2rem;
+}
+
+/* Search page (inside the stage iframe). */
+body.wsearch-page {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    margin: 0;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-mono);
+}
+.wsearch-bar {
+    flex: 0 0 auto;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--rule);
+    background: var(--paper);
+}
+.wsearch-form {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.wsearch-input-icon {
+    flex: 0 0 auto;
+    font-size: 1rem;
+    color: var(--muted);
+}
+.wsearch-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    padding: 7px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--ink);
+}
+.wsearch-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--focus);
+}
+.wsearch-toggle {
+    flex: 0 0 auto;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    line-height: 1;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--muted);
+    cursor: pointer;
+}
+.wsearch-toggle:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+.wsearch-toggle.is-on {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--bg);
+}
+.wsearch-meta {
+    margin-top: 6px;
+    min-height: 0.9rem;
+    font-size: 0.72rem;
+    color: var(--muted);
+}
+/* Meta row: result count on the left, expand/collapse-all on the right. */
+.wsearch-meta-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+}
+.wsearch-meta-row .wsearch-meta {
+    flex: 1 1 auto;
+    margin-top: 0;
+}
+.wsearch-actions {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 4px;
+}
+.wsearch-actions[hidden] {
+    display: none;
+}
+.wsearch-action {
+    padding: 2px 7px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: var(--bg);
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    cursor: pointer;
+}
+.wsearch-action:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+/* Root-directory strip: the absolute path every search runs against, pinned
+   between the search bar and the results (doesn't scroll with results). */
+.wsearch-root {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-bottom: 1px solid var(--rule);
+    background: var(--bg);
+    font-size: 0.68rem;
+    color: var(--muted);
+}
+.wsearch-root[hidden] {
+    display: none;
+}
+.wsearch-root-icon {
+    flex: 0 0 auto;
+    font-size: 0.72rem;
+}
+.wsearch-root-path {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.wsearch-results {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 6px 0 24px;
+    font-size: 0.78rem;
+    line-height: 1.5;
+}
+.wsearch-results:focus {
+    outline: none;
+}
+.wsearch-hint,
+.wsearch-error {
+    padding: 16px 14px;
+    font-size: 0.8rem;
+    color: var(--muted);
+}
+.wsearch-error {
+    color: var(--red);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+.wsearch-file {
+    margin-bottom: 4px;
+}
+.wsearch-file-head {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    padding: 5px 10px;
+    border: 0;
+    border-bottom: 1px solid var(--rule);
+    background: var(--paper-2);
+    color: var(--ink);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    text-align: left;
+    cursor: pointer;
+}
+.wsearch-file-head:hover {
+    color: var(--accent);
+}
+.wsearch-caret {
+    flex: 0 0 auto;
+    color: var(--muted);
+    font-size: 0.7rem;
+}
+.wsearch-path {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    font-weight: 600;
+}
+.wsearch-count {
+    flex: 0 0 auto;
+    padding: 0 6px;
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--muted);
+    font-size: 0.68rem;
+}
+.wsearch-file.is-collapsed .wsearch-hunks {
+    display: none;
+}
+.wsearch-hunk-sep {
+    height: 0;
+    margin: 3px 0;
+    border-top: 1px dashed var(--rule);
+}
+.wsearch-row {
+    display: flex;
+    align-items: flex-start;
+    cursor: pointer;
+}
+.wsearch-row:hover {
+    background: var(--term-tab-hover);
+}
+.wsearch-row.is-match {
+    background: var(--row-hover);
+}
+.wsearch-row.is-match:hover {
+    background: var(--term-tab-active);
+}
+.wsearch-ln {
+    flex: 0 0 auto;
+    width: 3.6em;
+    padding: 0 8px 0 4px;
+    text-align: right;
+    color: var(--muted);
+    opacity: 0.7;
+    user-select: none;
+    -webkit-user-select: none;
+}
+.wsearch-code {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-family: var(--font-mono);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    tab-size: 4;
+    color: var(--muted);
+}
+.wsearch-row.is-match .wsearch-code {
+    color: var(--ink);
+}
+.wsearch-mark {
+    background: rgba(223, 142, 29, 0.4);
+    color: var(--ink);
+    border-radius: 2px;
+    padding: 0 1px;
+}

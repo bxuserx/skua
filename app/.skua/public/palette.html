@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Skua — palette</title>
+        <script>
+            (function () {
+                try {
+                    var saved = localStorage.getItem("skua-theme");
+                    if (saved === "dark" || saved === "light") {
+                        document.documentElement.dataset.theme = saved;
+                        return;
+                    }
+                } catch (e) {}
+                if (
+                    window.matchMedia &&
+                    window.matchMedia("(prefers-color-scheme: dark)").matches
+                ) {
+                    document.documentElement.dataset.theme = "dark";
+                }
+            })();
+        </script>
+        <link rel="stylesheet" href="/styles.css" />
+        <style>
+            /* Palette-page-local styling. Lives inline because the page is
+               read-only documentation; doesn't need to participate in the
+               shared cascade. */
+            .palette-page main {
+                padding: 24px 32px 80px;
+                max-width: 980px;
+                margin: 0 auto;
+            }
+            .palette-page h1 {
+                font-family: var(--font-display);
+                font-weight: 400;
+                margin: 0 0 4px;
+            }
+            .palette-page .lede {
+                color: var(--muted);
+                font-size: var(--font-size-sm);
+                margin: 0 0 32px;
+            }
+            .palette-page .toc {
+                background: var(--paper);
+                border: 1px solid var(--border);
+                border-radius: var(--radius);
+                padding: 16px 20px;
+                margin-bottom: 32px;
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px 18px;
+            }
+            .palette-page .toc a {
+                color: var(--accent);
+                font-size: var(--font-size-sm);
+                text-decoration: none;
+            }
+            .palette-page .toc a:hover { text-decoration: underline; }
+            .palette-page section {
+                margin-bottom: 40px;
+                padding-top: 8px;
+            }
+            .palette-page section h2 {
+                font-family: var(--font-display);
+                font-weight: 400;
+                font-size: var(--font-size-lg);
+                margin: 0 0 4px;
+                color: var(--ink);
+            }
+            .palette-page section .section-note {
+                color: var(--muted);
+                font-size: var(--font-size-sm);
+                margin: 0 0 16px;
+            }
+            .palette-page .sample {
+                background: var(--paper);
+                border: 1px solid var(--border);
+                border-radius: var(--radius);
+                padding: 20px;
+                margin-bottom: 12px;
+            }
+            .palette-page .sample-row {
+                display: flex;
+                gap: 12px;
+                flex-wrap: wrap;
+                align-items: center;
+            }
+            .palette-page pre {
+                background: var(--paper-2);
+                border: 1px solid var(--border);
+                border-radius: var(--radius);
+                padding: 12px 14px;
+                margin: 12px 0 0;
+                font-size: var(--font-size-sm);
+                overflow-x: auto;
+                color: var(--ink);
+            }
+            .palette-page pre code { color: inherit; }
+            .palette-page .token-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+                gap: 10px;
+            }
+            .palette-page .token {
+                background: var(--paper);
+                border: 1px solid var(--border);
+                border-radius: var(--radius);
+                padding: 10px 12px;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+            }
+            .palette-page .token-name {
+                font-family: var(--font-mono);
+                font-size: var(--font-size-sm);
+                color: var(--muted);
+            }
+            .palette-page .token-value {
+                font-family: var(--font-mono);
+                font-size: var(--font-size-xs);
+                color: var(--ink);
+            }
+            .palette-page .swatch {
+                width: 28px;
+                height: 28px;
+                border-radius: var(--radius);
+                border: 1px solid var(--border);
+                flex-shrink: 0;
+            }
+            .palette-page .font-sample {
+                font-family: var(--font-mono);
+                white-space: nowrap;
+            }
+            .palette-page .radius-sample {
+                width: 60px;
+                height: 36px;
+                background: var(--ink);
+            }
+            .palette-page .shadow-sample {
+                width: 80px;
+                height: 40px;
+                background: var(--paper);
+                border-radius: var(--radius);
+            }
+        </style>
+    </head>
+    <body class="palette-page">
+        <!-- skua:navbar -->
+
+        <main>
+            <h1>palette</h1>
+            <p class="lede">
+                Living style guide for the skua dashboard. Every shared
+                primitive renders here. Markup snippets are copy-paste
+                ready. Use this page as the visual oracle when the audit
+                flags drift between a real page and this reference.
+            </p>
+
+            <nav class="toc" aria-label="Sections">
+                <a href="#tokens">tokens</a>
+                <a href="#fonts">fonts</a>
+                <a href="#buttons">buttons</a>
+                <a href="#close-btn">close-btn</a>
+                <a href="#toolbars">toolbars</a>
+                <a href="#accordions">accordions</a>
+                <a href="#status">status</a>
+                <a href="#modals">modals</a>
+                <a href="#utilities">utilities</a>
+            </nav>
+
+            <section id="tokens">
+                <h2>design tokens</h2>
+                <p class="section-note">
+                    Defined in <code>:root</code> at the top of
+                    <code>styles.css</code>. Consumers reference via
+                    <code>var(--token-name)</code>.
+                </p>
+
+                <div class="sample" id="fonts">
+                    <strong>font families</strong>
+                    <p class="section-note" style="margin: 8px 0 12px">
+                        Two families loaded via Google Fonts at the top
+                        of <code>styles.css</code>: Fira Code (default
+                        UI + display) and JetBrains Mono (used inline on
+                        a small number of rules, e.g. ADR domain tags).
+                        Both <code>--font-mono</code> and
+                        <code>--font-display</code> resolve to Fira Code
+                        — the dashboard is intentionally
+                        monospace-everywhere.
+                    </p>
+                    <div style="display: flex; flex-direction: column; gap: 14px">
+                        <div>
+                            <div class="token-name" style="margin-bottom: 4px">
+                                --font-mono · "Fira Code", ui-monospace, monospace
+                            </div>
+                            <div style="font-family: var(--font-mono); font-size: var(--font-size-md)">
+                                The quick brown fox jumps over the lazy dog · 0123456789 · =&gt; != &lt;=
+                            </div>
+                        </div>
+                        <div>
+                            <div class="token-name" style="margin-bottom: 4px">
+                                --font-display · "Fira Code", ui-monospace, monospace
+                            </div>
+                            <div style="font-family: var(--font-display); font-size: var(--font-size-md)">
+                                The quick brown fox jumps over the lazy dog · 0123456789
+                            </div>
+                        </div>
+                        <div>
+                            <div class="token-name" style="margin-bottom: 4px">
+                                "JetBrains Mono" — used inline on ADR domain tags
+                            </div>
+                            <div style="font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: var(--font-size-md)">
+                                The quick brown fox jumps over the lazy dog · 0123456789
+                            </div>
+                        </div>
+                    </div>
+                    <pre><code>font-family: var(--font-mono);     /* default — Fira Code */
+font-family: var(--font-display);  /* display — also Fira Code */
+font-family: "JetBrains Mono", ui-monospace, monospace;</code></pre>
+                </div>
+
+                <div class="sample">
+                    <strong>font sizes</strong>
+                    <div class="token-grid" style="margin-top: 12px">
+                        <div class="token">
+                            <span class="token-name">--font-size-xs</span>
+                            <span class="font-sample" style="font-size: var(--font-size-xs)">Aa 10px</span>
+                        </div>
+                        <div class="token">
+                            <span class="token-name">--font-size-sm</span>
+                            <span class="font-sample" style="font-size: var(--font-size-sm)">Aa 11px</span>
+                        </div>
+                        <div class="token">
+                            <span class="token-name">--font-size-base</span>
+                            <span class="font-sample" style="font-size: var(--font-size-base)">Aa 12px</span>
+                        </div>
+                        <div class="token">
+                            <span class="token-name">--font-size-md</span>
+                            <span class="font-sample" style="font-size: var(--font-size-md)">Aa 13px (body default)</span>
+                        </div>
+                        <div class="token">
+                            <span class="token-name">--font-size-lg</span>
+                            <span class="font-sample" style="font-size: var(--font-size-lg)">Aa 16px</span>
+                        </div>
+                        <div class="token">
+                            <span class="token-name">--font-size-xl</span>
+                            <span class="font-sample" style="font-size: var(--font-size-xl)">Aa 22px</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sample">
+                    <strong>font weights</strong>
+                    <p class="section-note" style="margin: 8px 0 12px">
+                        Fira Code and JetBrains Mono both ship at
+                        400 / 500 / 600. Rules in the wild use 400, 500,
+                        600, and 700 — 700 is browser-synthesized when
+                        not in the loaded set.
+                    </p>
+                    <div style="display: flex; flex-direction: column; gap: 8px; font-family: var(--font-mono); font-size: var(--font-size-md)">
+                        <div><span class="token-name" style="display: inline-block; width: 120px">400 regular</span><span style="font-weight: 400">The quick brown fox</span></div>
+                        <div><span class="token-name" style="display: inline-block; width: 120px">500 medium</span><span style="font-weight: 500">The quick brown fox</span></div>
+                        <div><span class="token-name" style="display: inline-block; width: 120px">600 semibold</span><span style="font-weight: 600">The quick brown fox</span></div>
+                        <div><span class="token-name" style="display: inline-block; width: 120px">700 bold (synth)</span><span style="font-weight: 700">The quick brown fox</span></div>
+                    </div>
+                    <pre><code>font-weight: 400;  /* regular — body default */
+font-weight: 500;  /* medium — emphasized UI labels */
+font-weight: 600;  /* semibold — section heads, primary buttons */
+font-weight: 700;  /* bold — browser-synthesized, used sparingly */</code></pre>
+                </div>
+
+                <div class="sample">
+                    <strong>spacing</strong>
+                    <div class="token-grid" style="margin-top: 12px">
+                        <div class="token"><span class="token-name">--space-xxs</span><span class="token-value">2px</span></div>
+                        <div class="token"><span class="token-name">--space-xs</span><span class="token-value">4px</span></div>
+                        <div class="token"><span class="token-name">--space-sm</span><span class="token-value">8px</span></div>
+                        <div class="token"><span class="token-name">--space</span><span class="token-value">12px</span></div>
+                        <div class="token"><span class="token-name">--space-lg</span><span class="token-value">16px</span></div>
+                        <div class="token"><span class="token-name">--space-xl</span><span class="token-value">20px</span></div>
+                        <div class="token"><span class="token-name">--space-2xl</span><span class="token-value">28px</span></div>
+                    </div>
+                </div>
+
+                <div class="sample">
+                    <strong>border-radius</strong>
+                    <div class="token-grid" style="margin-top: 12px">
+                        <div class="token"><div class="radius-sample" style="border-radius: var(--radius-xs)"></div><span class="token-name">--radius-xs</span></div>
+                        <div class="token"><div class="radius-sample" style="border-radius: var(--radius-sm)"></div><span class="token-name">--radius-sm</span></div>
+                        <div class="token"><div class="radius-sample" style="border-radius: var(--radius)"></div><span class="token-name">--radius</span></div>
+                        <div class="token"><div class="radius-sample" style="border-radius: var(--radius-md)"></div><span class="token-name">--radius-md</span></div>
+                        <div class="token"><div class="radius-sample" style="border-radius: var(--radius-lg)"></div><span class="token-name">--radius-lg</span></div>
+                        <div class="token"><div class="radius-sample" style="border-radius: var(--radius-xl)"></div><span class="token-name">--radius-xl</span></div>
+                        <div class="token"><div class="radius-sample" style="border-radius: var(--radius-pill)"></div><span class="token-name">--radius-pill</span></div>
+                        <div class="token"><div class="radius-sample" style="border-radius: var(--radius-circle); width: 36px"></div><span class="token-name">--radius-circle</span></div>
+                    </div>
+                </div>
+
+                <div class="sample">
+                    <strong>box-shadow</strong>
+                    <div class="token-grid" style="margin-top: 12px">
+                        <div class="token"><div class="shadow-sample" style="box-shadow: var(--shadow-sm)"></div><span class="token-name">--shadow-sm</span></div>
+                        <div class="token"><div class="shadow-sample" style="box-shadow: var(--shadow)"></div><span class="token-name">--shadow</span></div>
+                        <div class="token"><div class="shadow-sample" style="box-shadow: var(--shadow-lg)"></div><span class="token-name">--shadow-lg</span></div>
+                    </div>
+                </div>
+
+                <div class="sample">
+                    <strong>colors</strong>
+                    <div class="token-grid" style="margin-top: 12px">
+                        <div class="token"><div class="swatch" style="background: var(--ink)"></div><span class="token-name">--ink</span></div>
+                        <div class="token"><div class="swatch" style="background: var(--paper)"></div><span class="token-name">--paper</span></div>
+                        <div class="token"><div class="swatch" style="background: var(--paper-2)"></div><span class="token-name">--paper-2</span></div>
+                        <div class="token"><div class="swatch" style="background: var(--bg)"></div><span class="token-name">--bg</span></div>
+                        <div class="token"><div class="swatch" style="background: var(--muted)"></div><span class="token-name">--muted</span></div>
+                        <div class="token"><div class="swatch" style="background: var(--border)"></div><span class="token-name">--border</span></div>
+                        <div class="token"><div class="swatch" style="background: var(--red)"></div><span class="token-name">--red</span></div>
+                        <div class="token"><div class="swatch" style="background: var(--blue)"></div><span class="token-name">--blue</span></div>
+                        <div class="token"><div class="swatch" style="background: var(--green)"></div><span class="token-name">--green</span></div>
+                        <div class="token"><div class="swatch" style="background: var(--yellow)"></div><span class="token-name">--yellow</span></div>
+                        <div class="token"><div class="swatch" style="background: var(--peach)"></div><span class="token-name">--peach</span></div>
+                        <div class="token"><div class="swatch" style="background: var(--mauve)"></div><span class="token-name">--mauve</span></div>
+                        <div class="token"><div class="swatch" style="background: var(--teal)"></div><span class="token-name">--teal</span></div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="buttons">
+                <h2>buttons</h2>
+                <p class="section-note">
+                    Single <code>.btn</code> family with BEM variants
+                    (TKT-227). All variants share font-family
+                    <code>var(--font-mono)</code>, font-size
+                    <code>var(--font-size-base)</code> (12px), padding
+                    <code>8px 16px</code>, radius <code>var(--radius)</code>.
+                </p>
+                <div class="sample">
+                    <div class="sample-row">
+                        <button type="button" class="btn">Default</button>
+                        <button type="button" class="btn btn--primary">Primary</button>
+                        <button type="button" class="btn btn--secondary">Secondary</button>
+                        <button type="button" class="btn btn--danger">Danger</button>
+                        <button type="button" class="btn btn--transition">→ Transition</button>
+                        <button type="button" class="btn" disabled>Disabled</button>
+                    </div>
+                    <pre><code>&lt;button class="btn"&gt;Default&lt;/button&gt;
+&lt;button class="btn btn--primary"&gt;Primary&lt;/button&gt;
+&lt;button class="btn btn--secondary"&gt;Secondary&lt;/button&gt;
+&lt;button class="btn btn--danger"&gt;Danger&lt;/button&gt;
+&lt;button class="btn btn--transition"&gt;→ Transition&lt;/button&gt;
+&lt;button class="btn" disabled&gt;Disabled&lt;/button&gt;</code></pre>
+                </div>
+            </section>
+
+            <section id="close-btn">
+                <h2>close-btn</h2>
+                <p class="section-note">
+                    Canonical dismissal control for modals (TKT-229).
+                    Lives inside <code>.modal-head</code>. Replaces the
+                    legacy <code>.modal-close</code> and
+                    <code>.adr-modal-close</code> variants.
+                </p>
+                <div class="sample">
+                    <div class="sample-row" style="background: var(--paper-2); padding: 14px 18px; border-radius: var(--radius)">
+                        <strong>Modal title</strong>
+                        <button type="button" class="close-btn" aria-label="Close">×</button>
+                    </div>
+                    <pre><code>&lt;button type="button" class="close-btn" aria-label="Close"&gt;×&lt;/button&gt;</code></pre>
+                </div>
+            </section>
+
+            <section id="toolbars">
+                <h2>toolbars</h2>
+                <p class="section-note">
+                    Single <code>.toolbar</code> primitive with page-class
+                    ancestor scoping (TKT-230). The body's page class
+                    (<code>.board-page</code>, <code>.adr-page</code>,
+                    <code>.ticket-page</code>, <code>.graphs-page</code>)
+                    selects per-page styling.
+                </p>
+                <div class="sample">
+                    <p class="section-note">As seen on the board page (non-sticky, <code>--bg</code> background):</p>
+                    <div class="board-page">
+                        <div class="toolbar">
+                            <label>sort</label>
+                            <select><option>updated</option></select>
+                            <button type="button" class="sort-dir-btn">↓</button>
+                        </div>
+                    </div>
+                    <pre><code>&lt;body class="board-page"&gt;
+  &lt;div class="toolbar"&gt;
+    &lt;label&gt;sort&lt;/label&gt;
+    &lt;select&gt;…&lt;/select&gt;
+  &lt;/div&gt;
+&lt;/body&gt;</code></pre>
+                </div>
+            </section>
+
+            <section id="accordions">
+                <h2>accordions</h2>
+                <p class="section-note">
+                    Canonical collapsible chrome used by the ADR and
+                    ticket detail views. Class structure:
+                    <code>.adr-section.adr-section-&lt;slug&gt;</code>
+                    + <code>.adr-section-h</code>. Nested subsections use
+                    <code>.adr-subsection</code>.
+                </p>
+                <div class="sample">
+                    <div class="adr-md">
+                        <details class="adr-section adr-section-tldr" open>
+                            <summary class="adr-section-h">TL;DR</summary>
+                            <p style="padding: 0 12px">One-sentence statement of the decision.</p>
+                        </details>
+                        <details class="adr-section adr-section-decision">
+                            <summary class="adr-section-h">Decision</summary>
+                            <div style="padding: 0 12px">
+                                <details class="adr-subsection adr-subsection-approach" open>
+                                    <summary class="adr-subsection-h">Approach</summary>
+                                    <p>Sub-section example.</p>
+                                </details>
+                            </div>
+                        </details>
+                    </div>
+                    <pre><code>&lt;details class="adr-section adr-section-tldr" open&gt;
+  &lt;summary class="adr-section-h"&gt;TL;DR&lt;/summary&gt;
+  &lt;p&gt;Body content.&lt;/p&gt;
+&lt;/details&gt;</code></pre>
+                </div>
+            </section>
+
+            <section id="status">
+                <h2>status badges</h2>
+                <p class="section-note">
+                    Per-status pills shared by the ADR list, detail
+                    pages, and ticket headers. Class scheme:
+                    <code>.adr-status</code> +
+                    <code>.adr-status-&lt;state&gt;</code>.
+                </p>
+                <div class="sample">
+                    <div class="sample-row">
+                        <span class="adr-status adr-status-proposed">proposed</span>
+                        <span class="adr-status adr-status-accepted">accepted</span>
+                        <span class="adr-status adr-status-rejected">rejected</span>
+                        <span class="adr-status adr-status-superseded">superseded</span>
+                        <span class="adr-status adr-status-deprecated">deprecated</span>
+                    </div>
+                    <pre><code>&lt;span class="adr-status adr-status-accepted"&gt;accepted&lt;/span&gt;</code></pre>
+                </div>
+            </section>
+
+            <section id="modals">
+                <h2>modals</h2>
+                <p class="section-note">
+                    The dashboard ships two modal bases — legacy
+                    <code>&lt;div class="modal"&gt;</code> (toggled via
+                    the <code>hidden</code> attribute) and modern
+                    <code>&lt;dialog&gt;</code> (toggled via
+                    <code>showModal()</code>). Migration to single base
+                    is deferred. Both share the close-X primitive above.
+                </p>
+                <div class="sample">
+                    <p class="section-note">Trigger to preview a sample dialog:</p>
+                    <button type="button" class="btn btn--primary" onclick="document.getElementById('sample-modal').showModal()">Open dialog</button>
+                    <dialog id="sample-modal" class="adr-modal">
+                        <div class="adr-modal-head">
+                            <h2>Sample modal</h2>
+                            <button type="button" class="close-btn" aria-label="Close" onclick="document.getElementById('sample-modal').close()">×</button>
+                        </div>
+                        <div class="adr-modal-body">
+                            <p>Body content. Modals contain forms, confirmations, or detail panels.</p>
+                        </div>
+                        <footer class="adr-modal-foot">
+                            <button type="button" class="btn btn--secondary" onclick="document.getElementById('sample-modal').close()">Cancel</button>
+                            <button type="button" class="btn btn--primary" onclick="document.getElementById('sample-modal').close()">Confirm</button>
+                        </footer>
+                    </dialog>
+                </div>
+            </section>
+
+            <section id="utilities">
+                <h2>JS utilities</h2>
+                <p class="section-note">
+                    Pure JS helpers in
+                    <code>.skua/public/components/</code> (TKT-226).
+                </p>
+                <div class="sample">
+                    <pre><code>import { escapeHtml } from "/components/html-utils.js";
+import { formatBytes } from "/components/format.js";
+import { slugify, renderAccordion, renderSubsection } from "/components/accordion.js";
+
+escapeHtml('&lt;div&gt;');     // "&amp;lt;div&amp;gt;"
+formatBytes(2_500_000); // "2.4 MB"
+slugify("TL;DR");       // "tl-dr"</code></pre>
+                </div>
+            </section>
+        </main>
+
+        <!-- skua:howto-modal -->
+
+        <script type="module" src="/components/theme.js"></script>
+        <script type="module" src="/components/navbar-search.js"></script>
+        <script type="module" src="/components/howto.js"></script>
+    </body>
+</html>

@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>skua graphs</title>
+        <!-- FOUC-prevention: see index.html for the rationale. Same
+             snippet kept in sync across all three pages. -->
+        <script>
+            (function () {
+                try {
+                    var saved = localStorage.getItem("skua-theme");
+                    if (saved === "dark" || saved === "light") {
+                        document.documentElement.dataset.theme = saved;
+                        return;
+                    }
+                } catch (e) {}
+                if (
+                    window.matchMedia &&
+                    window.matchMedia("(prefers-color-scheme: dark)").matches
+                ) {
+                    document.documentElement.dataset.theme = "dark";
+                }
+            })();
+        </script>
+        <link rel="stylesheet" href="/styles.css" />
+        <script src="/vendor/cytoscape.min.js"></script>
+        <script src="/vendor/dagre.min.js"></script>
+        <script src="/vendor/cytoscape-dagre.min.js"></script>
+    </head>
+    <body class="graphs-page">
+        <!-- skua:navbar active="graphs" -->
+        <div class="subnav" id="subnav">
+            <a href="/graphs/tickets" data-kind="tickets">tickets</a>
+            <a href="/graphs/dataflow" data-kind="dataflow">dataflow</a>
+            <a href="/graphs/ai" data-kind="ai">ai</a>
+            <a href="/graphs/schemas" data-kind="schemas">schemas</a>
+        </div>
+        <div class="graph-title" id="graph-title">
+            <span class="graph-title-name" id="graph-title-name"></span>
+            <span class="graph-title-sub" id="graph-title-sub"></span>
+        </div>
+        <div class="toolbar">
+            <label>layout</label>
+            <select id="layout">
+                <option value="dagre">dagre</option>
+                <option value="cose">cose</option>
+                <option value="breadthfirst">breadthfirst</option>
+                <option value="circle">circle</option>
+                <option value="grid">grid</option>
+            </select>
+            <input
+                id="filter"
+                type="search"
+                placeholder="filter by name…"
+                autocomplete="off"
+            />
+            <label id="edge-mode-label" hidden>edges
+                <select id="edge-mode">
+                    <option value="all">all</option>
+                    <option value="parent">parent only (tree)</option>
+                </select>
+            </label>
+            <button id="rebuild">rebuild</button>
+            <button id="reset-layout" title="clear saved node positions and re-run the auto-layout">reset layout</button>
+        </div>
+        <div class="graph-stats" id="info"></div>
+        <div id="cy"></div>
+        <div id="schema-cards" hidden></div>
+        <details class="legend" id="legend-dataflow" hidden>
+            <summary>key / legend</summary>
+            <h4>nodes</h4>
+            <ul>
+                <li><span class="sw fe"></span>frontend route <em>(⚡ = cached)</em></li>
+                <li><span class="sw container"></span>deploy container <small>backend service</small></li>
+                <li><span class="sw endpoint"></span>endpoint <small>server action</small></li>
+                <li><span class="sw endpoint-api"></span>endpoint <small>API route</small></li>
+                <li><span class="sw store-firestore"></span>Firestore collection</li>
+                <li><span class="sw store-sql"></span>SQL table</li>
+                <li><span class="sw store-bq"></span>BigQuery table</li>
+            </ul>
+            <h4>edges</h4>
+            <ul>
+                <li><span class="ln fetch-cached"></span>fetch (cached)</li>
+                <li><span class="ln fetch"></span>fetch (uncached)</li>
+                <li><span class="ln hosts"></span>container hosts endpoint</li>
+                <li><span class="ln reads"></span>reads store</li>
+                <li><span class="ln writes"></span>writes store</li>
+            </ul>
+            <p class="hint">
+                route → endpoint (in a container) → database · click a node to focus its lineage · click background to clear
+            </p>
+        </details>
+        <details class="legend" id="legend-schemas" hidden>
+            <summary>key / legend</summary>
+            <h4>tables <small>(coloured by database · click to expand columns)</small></h4>
+            <ul>
+                <li><span class="sw db-firestore"></span>Firestore collection</li>
+                <li><span class="sw db-sql"></span>SQL table</li>
+                <li><span class="sw db-bigquery"></span>BigQuery table</li>
+                <li><span class="sw db-matview"></span>materialized view <small>⊳ (columns need ?live=1)</small></li>
+            </ul>
+            <h4>columns &amp; edges</h4>
+            <ul>
+                <li><span class="sw schema-column"></span>column <small>◆ = key (id / PK / partition)</small></li>
+                <li><span class="ln schema-subcollection"></span><strong>subcollection</strong> <small>Firestore nesting (parent → child)</small></li>
+                <li><span class="ln schema-references"></span><strong>references</strong> <small>FK-by-convention (deterministic *Id)</small></li>
+                <li><span class="ln schema-joins"></span><strong>joins</strong> <small>SQL/BQ JOIN…ON / USING</small></li>
+            </ul>
+            <p class="hint">
+                click a table to expand/collapse its columns · click any node to open the field inspector · for SQL/BigQuery append <code>?live=1</code> to the URL for live INFORMATION_SCHEMA introspection
+            </p>
+        </details>
+        <details class="legend" id="legend-tickets" hidden>
+            <summary>key / legend</summary>
+            <h4>edges</h4>
+            <ul>
+                <li><span class="ln depends-on"></span>depends_on</li>
+                <li><span class="ln blocks"></span>blocks</li>
+                <li><span class="ln related"></span>related</li>
+            </ul>
+            <p class="hint">click a node to open the ticket</p>
+        </details>
+        <details class="legend" id="legend-ai" hidden>
+            <summary>key / legend</summary>
+            <h4>node clusters</h4>
+            <ul>
+                <li><span class="sw ai-skill"></span>skill <small>SKILL.md</small></li>
+                <li><span class="sw ai-agent"></span>agent <small>built-in dashed; user/project solid</small></li>
+                <li><span class="sw ai-command"></span>slash-command <small>legacy commands/ dir</small></li>
+                <li><span class="sw ai-hook"></span>hook ◆ <small>event nodes dotted ring</small></li>
+                <li><span class="sw ai-mcp"></span>mcp-server ⌬ <small>tool ○ · prompt △ · resource ◇</small></li>
+                <li><span class="sw ai-style"></span>output-style <small>built-in dashed</small></li>
+                <li><span class="sw ai-plugin"></span>plugin / marketplace</li>
+                <li><span class="sw ai-settings"></span>settings-file / CLAUDE.md</small></li>
+                <li><span class="sw ai-misc"></span>status-line / lsp-server</li>
+                <li><span class="sw ai-tool"></span>tool <small>built-in or MCP-exposed</small></li>
+            </ul>
+            <h4>edges</h4>
+            <ul>
+                <li><span class="ln ai-gates"></span><strong>gates</strong> <small>hook → tool (Pre/PostToolUse matcher)</small></li>
+                <li><span class="ln ai-scopes"></span><strong>scopes</strong> <small>agent → tool (tools/disallowedTools)</small></li>
+                <li><span class="ln ai-invokes"></span><strong>invokes</strong> <small>agent → skill/mcp; hook → agent/mcp-tool</small></li>
+                <li><span class="ln ai-provides"></span><strong>provides</strong> <small>mcp-server → tool/prompt/resource</small></li>
+                <li><span class="ln ai-bundles"></span><strong>bundles</strong> <small>plugin → its components</small></li>
+                <li><span class="ln ai-lists"></span><strong>lists</strong> <small>marketplace → plugin</small></li>
+                <li><span class="ln ai-configures"></span><strong>configures</strong> <small>settings → hook/mcp/style</small></li>
+                <li><span class="ln ai-overrides"></span><strong>overrides</strong> <small>settings precedence chain</small></li>
+            </ul>
+            <p class="hint">
+                type <code>hook</code>, <code>mcp</code>, <code>skill</code>, <code>agent</code>, etc. in the filter to isolate one cluster · click a node to focus its lineage · ADR-004
+            </p>
+        </details>
+        <!-- skua:howto-modal -->
+
+        <script type="module" src="/graphs.js"></script>
+        <script type="module" src="/components/navbar-search.js"></script>
+        <script type="module" src="/components/theme.js"></script>
+        <script type="module" src="/components/howto.js"></script>
+    </body>
+</html>

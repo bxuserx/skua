@@ -1,0 +1,63 @@
+/* ── Navbar search (TKT-184) ─────────────────────────────────────────── */
+.navbar-search-wrap {
+    position: relative;
+}
+#navbar-search {
+    background: var(--paper);
+    color: var(--ink);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 5px 10px;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-base);
+    min-width: 240px;
+}
+#navbar-search:focus {
+    border-color: var(--accent);
+    outline: none;
+}
+.navbar-search-results {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    min-width: 320px;
+    max-width: 480px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-md);
+    box-shadow: 0 4px 14px rgba(var(--shadow-rgb), 0.12);
+    z-index: 50;
+    overflow: hidden;
+}
+.navbar-search-results .ns-row {
+    display: grid;
+    grid-template-columns: auto auto 1fr;
+    gap: 10px;
+    align-items: baseline;
+    padding: 6px 10px;
+    text-decoration: none;
+    color: var(--ink);
+    font-size: var(--font-size-base);
+    border-bottom: 1px solid var(--rule);
+}
+.navbar-search-results .ns-row:last-child {
+    border-bottom: 0;
+}
+.navbar-search-results .ns-row.hi,
+.navbar-search-results .ns-row:hover {
+    background: var(--row-hover);
+}
+.navbar-search-results .ns-id {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    color: var(--muted);
+    white-space: nowrap;
+}
+.navbar-search-results .ns-dom {
+    font-size: var(--font-size-xs);
+}
+.navbar-search-results .ns-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}

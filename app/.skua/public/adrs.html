@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>skua adrs</title>
+        <script>
+            (function () {
+                try {
+                    var saved = localStorage.getItem("skua-theme");
+                    if (saved === "dark" || saved === "light") {
+                        document.documentElement.dataset.theme = saved;
+                        return;
+                    }
+                } catch (e) {}
+                if (
+                    window.matchMedia &&
+                    window.matchMedia("(prefers-color-scheme: dark)").matches
+                ) {
+                    document.documentElement.dataset.theme = "dark";
+                }
+            })();
+        </script>
+        <link rel="stylesheet" href="/styles.css" />
+    </head>
+    <body class="adrs-page">
+        <!-- skua:navbar active="adrs" -->
+        <main class="adrs-page">
+            <div class="adrs-toolbar">
+                <h1>ADRs</h1>
+                <div class="adrs-toolbar-right">
+                    <div class="adrs-filter">
+                        <label>status:</label>
+                        <select id="status-filter">
+                            <option value="all">all</option>
+                            <option value="proposed">proposed</option>
+                            <option value="accepted">accepted</option>
+                            <option value="rejected">rejected</option>
+                            <option value="superseded">superseded</option>
+                            <option value="deprecated">deprecated</option>
+                        </select>
+                    </div>
+                    <button
+                        type="button"
+                        id="create-adr-btn"
+                        class="scratch-pad-btn"
+                    >
+                        + Create ADR
+                    </button>
+                </div>
+            </div>
+            <div id="adrs-list" class="adrs-list">
+                <p class="adrs-empty">loading…</p>
+            </div>
+        </main>
+        <dialog id="create-adr-modal" class="adr-modal adr-modal-wide">
+            <form method="dialog" id="create-adr-form" class="adr-modal-form">
+                <header class="adr-modal-head">
+                    <h2>Create ADR</h2>
+                    <button
+                        type="button"
+                        class="close-btn"
+                        id="create-adr-close"
+                        aria-label="Close"
+                    >
+                        ×
+                    </button>
+                </header>
+                <div class="adr-modal-body adr-create-body">
+                    <p class="adr-modal-subhead">
+                        All ADRs start in <code>proposed</code> status. ID is
+                        auto-assigned. Required fields are marked.
+                    </p>
+
+                    <div class="adr-form-grid">
+                        <div class="adr-form-field adr-form-field-wide">
+                            <label for="cadr-title"
+                                >Title <span class="req">*</span></label
+                            >
+                            <input
+                                type="text"
+                                id="cadr-title"
+                                name="title"
+                                autocomplete="off"
+                                placeholder="short decision phrase"
+                                required
+                            />
+                        </div>
+
+                        <div class="adr-form-field">
+                            <label for="cadr-domain">Domain</label>
+                            <select id="cadr-domain" name="domain">
+                                <option value="meta">meta</option>
+                                <option value="app">app</option>
+                                <option value="infra">infra</option>
+                                <option value="docs">docs</option>
+                            </select>
+                        </div>
+
+                        <div class="adr-form-field">
+                            <label for="cadr-complexity">Complexity</label>
+                            <select id="cadr-complexity" name="complexity">
+                                <option value="">— none —</option>
+                                <option value="1">1 · trivial</option>
+                                <option value="2">2 · small</option>
+                                <option value="3">3 · medium</option>
+                                <option value="4">4 · large</option>
+                                <option value="5">5 · xl</option>
+                            </select>
+                        </div>
+
+                        <div class="adr-form-field adr-form-field-wide">
+                            <label for="cadr-deciders"
+                                >Deciders
+                                <small>(comma-separated)</small></label
+                            >
+                            <input
+                                type="text"
+                                id="cadr-deciders"
+                                name="deciders"
+                                value="bx"
+                                autocomplete="off"
+                            />
+                        </div>
+
+                    </div>
+
+                    <details class="adr-form-accordion">
+                        <summary>Tags · Related tickets · Supersedes</summary>
+                        <div class="adr-form-grid">
+                            <div class="adr-form-field adr-form-field-wide">
+                                <label for="cadr-tags"
+                                    >Tags <small>(comma-separated)</small></label
+                                >
+                                <input
+                                    type="text"
+                                    id="cadr-tags"
+                                    name="tags"
+                                    autocomplete="off"
+                                    placeholder="e.g. cache, postgres"
+                                />
+                            </div>
+
+                            <div class="adr-form-field">
+                                <label for="cadr-related"
+                                    >Related tickets
+                                    <small>(TKT-NNN, comma)</small></label
+                                >
+                                <input
+                                    type="text"
+                                    id="cadr-related"
+                                    name="related_tickets"
+                                    autocomplete="off"
+                                    placeholder="TKT-170, TKT-205"
+                                />
+                            </div>
+
+                            <div class="adr-form-field">
+                                <label for="cadr-supersedes"
+                                    >Supersedes
+                                    <small>(ADR-NNN, comma)</small></label
+                                >
+                                <input
+                                    type="text"
+                                    id="cadr-supersedes"
+                                    name="supersedes"
+                                    autocomplete="off"
+                                    placeholder="ADR-001"
+                                />
+                            </div>
+                        </div>
+                    </details>
+
+                    <div class="adr-form-field">
+                        <label for="cadr-tldr"
+                            >TL;DR <span class="req">*</span>
+                            <small
+                                >(2–4 sentences for the dashboard list
+                                preview)</small
+                            ></label
+                        >
+                        <textarea
+                            id="cadr-tldr"
+                            name="tldr"
+                            rows="3"
+                            required
+                            placeholder="What was decided and why it matters, in plain English."
+                        ></textarea>
+                    </div>
+
+                    <fieldset class="adr-form-fieldset">
+                        <legend>Decision <span class="req">*</span></legend>
+                        <p class="adr-form-fieldset-hint">
+                            Approach is required. Scope + Reversibility are
+                            optional and live in the accordion below.
+                        </p>
+
+                        <div class="adr-form-field">
+                            <label for="cadr-decision-chosen"
+                                >Approach <span class="req">*</span></label
+                            >
+                            <textarea
+                                id="cadr-decision-chosen"
+                                name="decision_chosen"
+                                rows="8"
+                                required
+                                placeholder="The path taken — describe the approach in detail (architecture, tradeoffs, sequencing). The AI will expand on this during enrichment."
+                            ></textarea>
+                        </div>
+
+                        <details class="adr-form-accordion adr-form-accordion-nested">
+                            <summary>Scope · Reversibility <small>(optional)</small></summary>
+
+                            <div class="adr-form-field">
+                                <label for="cadr-decision-scope">Scope</label>
+                                <textarea
+                                    id="cadr-decision-scope"
+                                    name="decision_scope"
+                                    rows="2"
+                                    placeholder="What this decision covers vs. doesn't cover. Omit if obvious."
+                                ></textarea>
+                            </div>
+
+                            <div class="adr-form-field">
+                                <label for="cadr-decision-reversibility">Reversibility</label>
+                                <textarea
+                                    id="cadr-decision-reversibility"
+                                    name="decision_reversibility"
+                                    rows="2"
+                                    placeholder="easy / medium / hard — one-line reason (e.g. 'medium — requires a backfill and 2 ticket recompute')"
+                                ></textarea>
+                            </div>
+                        </details>
+                    </fieldset>
+
+                    <div class="adr-form-field">
+                        <label for="cadr-consequences">Consequences</label>
+                        <textarea
+                            id="cadr-consequences"
+                            name="consequences"
+                            rows="4"
+                            placeholder="What follows: tickets implied, conventions established, risks accepted."
+                        ></textarea>
+                    </div>
+
+                    <div class="adr-form-field">
+                        <label for="cadr-alternatives"
+                            >Alternatives considered</label
+                        >
+                        <textarea
+                            id="cadr-alternatives"
+                            name="alternatives"
+                            rows="4"
+                            placeholder="What was rejected and why. At least 2, ideally 3 alternatives."
+                        ></textarea>
+                    </div>
+
+                    <p class="adr-modal-error" id="create-adr-error" hidden></p>
+                </div>
+                <footer class="adr-modal-foot">
+                    <button
+                        type="button"
+                        class="btn btn--secondary"
+                        id="create-adr-cancel"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        type="submit"
+                        class="btn btn--primary"
+                        id="create-adr-submit"
+                    >
+                        Create ADR
+                    </button>
+                </footer>
+            </form>
+        </dialog>
+        <!-- skua:howto-modal -->
+
+        <script type="module" src="/adrs.js"></script>
+        <script type="module" src="/components/navbar-search.js"></script>
+        <script type="module" src="/components/theme.js"></script>
+        <script type="module" src="/components/howto.js"></script>
+    </body>
+</html>

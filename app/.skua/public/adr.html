@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>skua adr</title>
+        <script>
+            (function () {
+                try {
+                    var saved = localStorage.getItem("skua-theme");
+                    if (saved === "dark" || saved === "light") {
+                        document.documentElement.dataset.theme = saved;
+                        return;
+                    }
+                } catch (e) {}
+                if (
+                    window.matchMedia &&
+                    window.matchMedia("(prefers-color-scheme: dark)").matches
+                ) {
+                    document.documentElement.dataset.theme = "dark";
+                }
+            })();
+        </script>
+        <link rel="stylesheet" href="/styles.css" />
+    </head>
+    <body class="adr-page">
+        <!-- skua:navbar active="adrs" -->
+        <div class="toolbar">
+            <button
+                type="button"
+                class="btn btn--secondary"
+                data-expand-all
+                aria-pressed="false"
+                title="Expand or collapse every section"
+            >
+                expand all
+            </button>
+            <button
+                type="button"
+                id="adr-delete-btn"
+                class="btn btn--danger"
+                title="Delete this ADR"
+            >
+                Delete ADR
+            </button>
+            <a
+                class="ticket-close"
+                href="/adrs"
+                aria-label="Close — back to ADR list"
+                >×</a
+            >
+        </div>
+        <main class="adr-page" id="adr-page">
+            <article class="adr-body" id="adr-body">
+                <p class="adrs-empty">loading…</p>
+            </article>
+            <aside class="adr-side" id="adr-side"></aside>
+        </main>
+        <dialog id="transition-modal" class="adr-modal">
+            <form method="dialog" id="transition-form" class="adr-modal-form">
+                <header class="adr-modal-head">
+                    <h2 id="transition-modal-title">Transition ADR</h2>
+                    <button
+                        type="button"
+                        class="close-btn"
+                        id="transition-modal-close"
+                        aria-label="Close"
+                    >
+                        ×
+                    </button>
+                </header>
+                <div class="adr-modal-body">
+                    <p class="adr-modal-subhead" id="transition-modal-subhead">
+                        Confirm transition and provide deciders.
+                    </p>
+                    <label class="adr-modal-label" for="transition-deciders"
+                        >Deciders (comma-separated)</label
+                    >
+                    <input
+                        type="text"
+                        id="transition-deciders"
+                        name="deciders"
+                        autocomplete="off"
+                        spellcheck="false"
+                        placeholder="bx, alice, bob"
+                        required
+                    />
+                    <p
+                        class="adr-modal-error"
+                        id="transition-modal-error"
+                        hidden
+                    ></p>
+                </div>
+                <footer class="adr-modal-foot">
+                    <button
+                        type="button"
+                        class="btn btn--secondary"
+                        id="transition-cancel"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        type="submit"
+                        class="btn btn--primary"
+                        id="transition-submit"
+                    >
+                        Confirm
+                    </button>
+                </footer>
+            </form>
+        </dialog>
+        <dialog id="comment-modal" class="adr-modal">
+            <form method="dialog" id="comment-form" class="adr-modal-form">
+                <header class="adr-modal-head">
+                    <h2>Add comment</h2>
+                    <button
+                        type="button"
+                        class="close-btn"
+                        id="comment-modal-close"
+                        aria-label="Close"
+                    >
+                        ×
+                    </button>
+                </header>
+                <div class="adr-modal-body">
+                    <div class="adr-form-field">
+                        <label for="comment-author">Author</label>
+                        <input
+                            type="text"
+                            id="comment-author"
+                            name="author"
+                            value="bx"
+                            autocomplete="off"
+                            required
+                        />
+                    </div>
+                    <div class="adr-form-field">
+                        <label for="comment-text"
+                            >Comment <span class="req">*</span></label
+                        >
+                        <textarea
+                            id="comment-text"
+                            name="text"
+                            rows="4"
+                            required
+                            placeholder="A note, observation, or follow-up. Markdown allowed."
+                        ></textarea>
+                    </div>
+                    <p
+                        class="adr-modal-error"
+                        id="comment-modal-error"
+                        hidden
+                    ></p>
+                </div>
+                <footer class="adr-modal-foot">
+                    <button
+                        type="button"
+                        class="btn btn--secondary"
+                        id="comment-cancel"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        type="submit"
+                        class="btn btn--primary"
+                        id="comment-submit"
+                    >
+                        Add comment
+                    </button>
+                </footer>
+            </form>
+        </dialog>
+        <dialog id="delete-modal" class="adr-modal">
+            <form method="dialog" id="delete-form" class="adr-modal-form">
+                <header class="adr-modal-head">
+                    <h2>Delete ADR</h2>
+                    <button
+                        type="button"
+                        class="close-btn"
+                        id="delete-modal-close"
+                        aria-label="Close"
+                    >
+                        ×
+                    </button>
+                </header>
+                <div class="adr-modal-body">
+                    <p class="adr-modal-subhead" id="delete-modal-subhead">
+                        This permanently removes the ADR folder (canonical
+                        markdown, versions, comments, references). This cannot
+                        be undone. Other ADRs that reference this one via
+                        <code>supersedes</code> or <code>superseded_by</code>
+                        will be left with dangling references.
+                    </p>
+                    <label class="adr-modal-label" for="delete-confirm"
+                        >Type the ADR id to confirm</label
+                    >
+                    <input
+                        type="text"
+                        id="delete-confirm"
+                        name="confirm"
+                        autocomplete="off"
+                        spellcheck="false"
+                        placeholder="ADR-NNN"
+                        required
+                    />
+                    <p
+                        class="adr-modal-error"
+                        id="delete-modal-error"
+                        hidden
+                    ></p>
+                </div>
+                <footer class="adr-modal-foot">
+                    <button
+                        type="button"
+                        class="btn btn--secondary"
+                        id="delete-cancel"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        type="submit"
+                        class="btn btn--danger"
+                        id="delete-submit"
+                    >
+                        Delete
+                    </button>
+                </footer>
+            </form>
+        </dialog>
+        <!-- skua:howto-modal -->
+
+        <script type="module" src="/adr.js"></script>
+        <script type="module" src="/components/navbar-search.js"></script>
+        <script type="module" src="/components/theme.js"></script>
+        <script type="module" src="/components/howto.js"></script>
+        <script src="/components/expand-all.js"></script>
+    </body>
+</html>

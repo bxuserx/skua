@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>skua search</title>
+        <script>
+            // Match the dashboard theme (same localStorage key) so the embedded
+            // search page follows dark/light like the terminal iframes do.
+            (function () {
+                try {
+                    var saved = localStorage.getItem("skua-theme");
+                    if (saved === "dark" || saved === "light") {
+                        document.documentElement.dataset.theme = saved;
+                        return;
+                    }
+                } catch (e) {}
+                if (
+                    window.matchMedia &&
+                    window.matchMedia("(prefers-color-scheme: dark)").matches
+                ) {
+                    document.documentElement.dataset.theme = "dark";
+                }
+            })();
+        </script>
+        <link rel="stylesheet" href="/styles.css" />
+    </head>
+    <body class="wsearch-page">
+        <header class="wsearch-bar">
+            <form id="wsearch-form" class="wsearch-form" role="search">
+                <span class="wsearch-input-icon" aria-hidden="true">⌕</span>
+                <input
+                    type="text"
+                    id="wsearch-input"
+                    class="wsearch-input"
+                    placeholder="Search the repo…"
+                    autocomplete="off"
+                    spellcheck="false"
+                    autofocus
+                />
+                <button
+                    type="button"
+                    id="wsearch-case"
+                    class="wsearch-toggle"
+                    title="Match case"
+                    aria-label="Match case"
+                    aria-pressed="false"
+                >
+                    Aa
+                </button>
+                <button
+                    type="button"
+                    id="wsearch-regex"
+                    class="wsearch-toggle"
+                    title="Use regular expression"
+                    aria-label="Use regular expression"
+                    aria-pressed="false"
+                >
+                    .*
+                </button>
+            </form>
+            <div class="wsearch-meta-row">
+                <div id="wsearch-meta" class="wsearch-meta"></div>
+                <div class="wsearch-actions" id="wsearch-actions" hidden>
+                    <button type="button" id="wsearch-expand" class="wsearch-action" title="Expand all files">
+                        expand all
+                    </button>
+                    <button type="button" id="wsearch-collapse" class="wsearch-action" title="Collapse all files">
+                        collapse all
+                    </button>
+                </div>
+            </div>
+        </header>
+        <div class="wsearch-root" id="wsearch-root" hidden>
+            <span class="wsearch-root-icon" aria-hidden="true">📁</span>
+            <span class="wsearch-root-path" id="wsearch-root-path"></span>
+        </div>
+        <div id="wsearch-results" class="wsearch-results" tabindex="-1">
+            <div class="wsearch-hint">
+                Type a string and press <kbd>Enter</kbd> to search every file in
+                the repo.
+            </div>
+        </div>
+        <script type="module" src="/search.js"></script>
+    </body>
+</html>

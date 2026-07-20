@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Skua</title>
+        <!-- FOUC-prevention: set data-theme synchronously before paint.
+             Reads localStorage first, then OS preference. Kept inline
+             (no module / no async) so the attribute lands before the
+             stylesheet computes any var(--xxx) values. -->
+        <script>
+            (function () {
+                try {
+                    var saved = localStorage.getItem("skua-theme");
+                    if (saved === "dark" || saved === "light") {
+                        document.documentElement.dataset.theme = saved;
+                        return;
+                    }
+                } catch (e) {}
+                if (
+                    window.matchMedia &&
+                    window.matchMedia("(prefers-color-scheme: dark)").matches
+                ) {
+                    document.documentElement.dataset.theme = "dark";
+                }
+            })();
+        </script>
+        <link rel="stylesheet" href="/styles.css" />
+    </head>
+    <body class="board-page">
+        <!-- skua:navbar active="board" -->
+
+        <!-- Active-flows chip bar. Hidden by default; populated when
+             GET /api/stacks/active returns a non-empty active_list. One chip
+             per active agentic flow; X dismisses locally. -->
+        <div id="stack-flows-bar" class="stack-flows-bar" hidden>
+            <div class="stack-flows-bar-inner">
+                <div
+                    id="stack-flows-chips"
+                    class="stack-flows-chips"
+                    role="list"
+                    aria-label="Active agentic flows"
+                ></div>
+            </div>
+        </div>
+
+        <section class="scratch-pad-row" id="scratch-pad-row">
+            <header>
+                <h2>
+                    <span class="swatch scratch-pad-swatch"></span>Scratch
+                    Pad<span class="count" id="scratch-pad-count">0</span>
+                </h2>
+                <button
+                    class="scratch-pad-btn"
+                    id="scratch-pad-btn"
+                    type="button"
+                >
+                    + New
+                </button>
+                <button
+                    class="scratch-pad-toggle"
+                    id="scratch-pad-toggle"
+                    type="button"
+                    title="Minimize Scratch Pad"
+                    aria-expanded="true"
+                    aria-controls="scratch-pad-list"
+                >
+                    ▾
+                </button>
+            </header>
+            <div class="scratch-pad-list" id="scratch-pad-list"></div>
+        </section>
+
+        <div class="toolbar">
+            <label for="sort-key">Sort</label>
+            <select id="sort-key">
+                <option value="id">ID</option>
+                <option value="priority">Priority</option>
+                <option value="domain">Domain</option>
+                <option value="created">Created</option>
+            </select>
+            <button
+                id="sort-dir"
+                class="sort-dir-btn"
+                title="Toggle sort direction"
+            >
+                ↑
+            </button>
+
+            <span class="toolbar-sep" aria-hidden="true"></span>
+
+            <label for="view-mode-btn">View</label>
+            <button
+                id="view-mode-btn"
+                class="view-mode-btn"
+                type="button"
+                title="Toggle between card and list view"
+            >
+                Cards
+            </button>
+
+            <div
+                id="hidden-cols-strip"
+                class="hidden-cols-strip"
+                hidden
+            ></div>
+        </div>
+
+        <div id="board" class="board"></div>
+
+        <!-- Quick-create modal. Hidden by default; toggled by #scratch-add. -->
+        <div class="modal" id="create-modal" hidden>
+            <div class="modal-backdrop" data-modal-close></div>
+            <form class="modal-card" id="create-form">
+                <header class="modal-head">
+                    <h3>New idea</h3>
+                    <button
+                        type="button"
+                        class="close-btn"
+                        data-modal-close
+                        aria-label="Close"
+                    >
+                        ×
+                    </button>
+                </header>
+
+                <div class="modal-body">
+                    <div class="field field-full">
+                        <label for="m-title"
+                            >title <span class="req">*</span></label
+                        >
+                        <input
+                            id="m-title"
+                            name="title"
+                            required
+                            autocomplete="off"
+                        />
+                    </div>
+
+                    <div class="field field-full">
+                        <label for="m-priority"
+                            >priority <span class="req">*</span></label
+                        >
+                        <select id="m-priority" name="priority" required>
+                            <option>High</option>
+                            <option selected>Medium</option>
+                            <option>Low</option>
+                        </select>
+                    </div>
+
+                    <div class="field field-full">
+                        <label for="m-domain">domain</label>
+                        <input
+                            id="m-domain"
+                            name="domain"
+                            list="m-domain-list"
+                            autocomplete="off"
+                            placeholder="meta"
+                        />
+                        <datalist id="m-domain-list"></datalist>
+                    </div>
+
+                    <div class="field field-full">
+                        <label for="m-complexity">complexity</label>
+                        <select id="m-complexity" name="complexity">
+                            <option value="auto" selected>auto (AI decides)</option>
+                            <option value="1">1 — trivial</option>
+                            <option value="2">2 — small</option>
+                            <option value="3">3 — medium</option>
+                            <option value="4">4 — large</option>
+                            <option value="5">5 — xl</option>
+                        </select>
+                    </div>
+
+                    <div class="field field-full">
+                        <label for="m-body">description</label>
+                        <textarea
+                            id="m-body"
+                            name="body"
+                            rows="5"
+                            placeholder="Optional. Additional notes, links, context — the AI will expand this when promoting to backlog."
+                        ></textarea>
+                    </div>
+
+                    <details class="accordion">
+                        <summary>more fields (optional)</summary>
+                        <div class="accordion-body">
+                            <div class="field field-full">
+                                <label for="m-tags">tags</label>
+                                <input
+                                    id="m-tags"
+                                    name="tags"
+                                    placeholder="comma-separated"
+                                />
+                            </div>
+                            <div class="field field-full">
+                                <label for="m-depends_on">depends_on</label>
+                                <input
+                                    id="m-depends_on"
+                                    name="depends_on"
+                                    placeholder="TKT-xxx"
+                                />
+                            </div>
+                            <div class="field field-full">
+                                <label for="m-blocks">blocks</label>
+                                <input
+                                    id="m-blocks"
+                                    name="blocks"
+                                    placeholder="TKT-106"
+                                />
+                            </div>
+                            <div class="field field-full">
+                                <label for="m-related">related</label>
+                                <input
+                                    id="m-related"
+                                    name="related"
+                                    placeholder="TKT-110"
+                                />
+                            </div>
+                        </div>
+                    </details>
+                </div>
+
+                <footer class="modal-foot">
+                    <span class="status" id="m-status"></span>
+                    <button
+                        type="button"
+                        class="btn btn--secondary"
+                        data-modal-close
+                    >
+                        Cancel
+                    </button>
+                    <button type="submit" class="btn">Create</button>
+                </footer>
+            </form>
+        </div>
+
+        <!-- skua:howto-modal -->
+
+        <script type="module" src="/app.js"></script>
+        <script type="module" src="/components/navbar-search.js"></script>
+        <script type="module" src="/components/theme.js"></script>
+        <script type="module" src="/components/howto.js"></script>
+    </body>
+</html>

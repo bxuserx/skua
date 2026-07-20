@@ -1,0 +1,266 @@
+/* ── Edit view ─────────────────────────────────────────────────────── */
+.edit-wrap {
+    max-width: 1400px;
+    margin: 0;
+    padding: 20px 32px 40px;
+}
+
+/* Files-touched list at the bottom of the ticket view. */
+.files-touched {
+    margin-top: 28px;
+    border-top: 1px solid var(--rule);
+    padding-top: 18px;
+}
+.files-touched header {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+.files-touched header h3 {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.9px;
+}
+.files-touched .files-meta {
+    color: var(--muted);
+    font-size: var(--font-size-sm);
+}
+.files-touched ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.files-touched li {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-base);
+    color: var(--ink);
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+}
+.files-touched li:hover {
+    background: var(--row-hover);
+}
+
+/* Implementation summary panel — above the body textarea, only for post-impl buckets. */
+.impl-summary {
+    margin: 16px 0 4px;
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--bucket-staging);
+    border-radius: var(--radius);
+    background: var(--paper);
+    padding: 14px 16px 10px;
+}
+.impl-summary-sections {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.impl-summary ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.impl-summary li {
+    font-size: var(--font-size-base);
+    color: var(--ink);
+    line-height: 1.5;
+    padding-left: 14px;
+    position: relative;
+}
+.impl-summary li::before {
+    content: "–";
+    position: absolute;
+    left: 0;
+    color: var(--muted);
+}
+.impl-sub-heading {
+    margin: 0 0 6px;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-base);
+    font-weight: 400;
+    color: var(--ink);
+    text-transform: none;
+    letter-spacing: 0;
+}
+.impl-sub-heading::before {
+    content: "## ";
+    color: var(--muted);
+}
+
+/* Three grouped blocks side-by-side at the top of the page. */
+.meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+    margin: 16px 0 12px;
+}
+.meta-row > .field {
+    flex: 1 1 160px;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.meta-row > .field input,
+.meta-row > .field select {
+    width: 100%;
+}
+
+/* Relationships/tags reuses the shared .adr-section chrome; .adr-section
+ * already supplies the padding so the body just needs the flex layout. */
+.ticket-rel-wrap {
+    margin: 12px 0;
+}
+.ticket-rel-accordion > .rel-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* Divider that separates the ticket definition (title + meta-row +
+ * relationships/tags accordion) from the ticket description below. */
+.ticket-def-divider {
+    border: 0;
+    border-top: 1px solid var(--rule);
+    margin: 18px 0;
+}
+
+/* Ticket ID heading above the title input — mirrors the ADR view's H1
+ * treatment, but the ticket title is editable so the H1 only carries the id. */
+.ticket-id-heading {
+    margin: 0 0 4px;
+    font-size: 1.5rem;
+    font-family: var(--font-mono);
+    color: var(--ink);
+}
+
+/* Full-width rows for title + body — label stacked above the input. */
+.field.field-full {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 12px 0;
+}
+.field.field-full input {
+    font-size: 14px;
+}
+
+.field label {
+    color: var(--muted);
+    font-size: var(--font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    font-weight: 500;
+}
+.field input,
+.field select,
+.field textarea {
+    background: var(--paper);
+    color: var(--ink);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 6px 9px;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-base);
+}
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--focus);
+}
+.field input[readonly] {
+    background: var(--paper-2);
+    color: var(--muted);
+    cursor: default;
+}
+.field textarea {
+    font-family: var(--font-mono);
+    min-height: 480px;
+    resize: vertical;
+    line-height: 1.5;
+}
+
+/* === COMPONENT: button (TKT-227) ===
+   Unified `.btn` family with BEM variants. Base = `--ink` filled.
+   Variants compose via `.btn--primary` / `--secondary` / `--danger` /
+   `--transition`. Old `.adr-btn*`, `.btn.danger`, `.btn.secondary`,
+   `.adr-transition-btn` were consolidated here. */
+.btn {
+    background: var(--ink);
+    color: var(--paper);
+    border: 1px solid var(--ink);
+    border-radius: var(--radius);
+    padding: 8px 16px;
+    cursor: pointer;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-base);
+    letter-spacing: 0.3px;
+    transition:
+        opacity 120ms,
+        background 120ms,
+        border-color 120ms,
+        color 120ms;
+}
+.btn:hover {
+    opacity: 0.85;
+}
+.btn:disabled {
+    opacity: 0.5;
+    cursor: progress;
+}
+.btn--primary {
+    background: var(--adr-accepted, var(--green));
+    border-color: var(--adr-accepted, var(--green));
+    color: #fff;
+}
+.btn--secondary {
+    background: transparent;
+    color: var(--muted);
+    border-color: var(--border);
+}
+.btn--secondary:hover {
+    color: var(--ink);
+    border-color: var(--ink);
+    opacity: 1;
+}
+.btn--danger {
+    background: transparent;
+    color: var(--red);
+    border-color: var(--red);
+}
+.btn--danger:hover {
+    background: var(--red);
+    color: var(--paper);
+    opacity: 1;
+}
+.btn--transition {
+    padding: 0.5rem 0.85rem;
+    background: var(--bg-card, transparent);
+    border-color: var(--border-strong, var(--border));
+    color: inherit;
+    font-weight: 500;
+    text-align: left;
+}
+.btn--transition:hover {
+    background: var(--bg-hover, var(--row-hover));
+    border-color: var(--adr-accepted, var(--green));
+    opacity: 1;
+}
+.status {
+    color: var(--muted);
+    font-size: var(--font-size-sm);
+    min-width: 60px;
+    text-align: right;
+}

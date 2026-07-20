@@ -1,0 +1,6 @@
+// skua's zellij layout: one bare pane, NO tab-bar/status-bar plugins — the
+// skua dashboard owns all chrome, so the terminal is the entire screen (this
+// also leaves the full screen as one scroll region for xterm.js).
+layout {
+    pane
+}

@@ -1,0 +1,16 @@
+/* skua dashboard styles — split into per-feature partials under /styles/.
+   @import order == original source order, so the cascade is unchanged.
+   Edit the relevant partial; this file is just the index. */
+@import url("https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap");
+@import url("/styles/tokens.css");
+@import url("/styles/nav.css");
+@import url("/styles/controls.css");
+@import url("/styles/board.css");
+@import url("/styles/edit.css");
+@import url("/styles/howto.css");
+@import url("/styles/graph.css");
+@import url("/styles/search.css");
+@import url("/styles/adr.css");
+@import url("/styles/terminal.css");
+@import url("/styles/project-search.css");
+@import url("/styles/chaos.css");

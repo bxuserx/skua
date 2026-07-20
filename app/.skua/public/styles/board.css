@@ -1,0 +1,338 @@
+/* ── Kanban board ──────────────────────────────────────────────────── */
+.board {
+    display: flex;
+    gap: 14px;
+    padding: 16px;
+    overflow-x: auto;
+    height: auto;
+    flex: 1;
+    background: var(--bg);
+}
+.col {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-lg);
+    min-width: 280px;
+    max-width: 320px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    max-height: 100%;
+    box-shadow: 0 1px 0 rgba(var(--shadow-rgb), 0.02);
+}
+.col h2 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.9px;
+    color: var(--muted);
+    font-weight: 500;
+    margin: 0;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--rule);
+}
+.col h2 .count {
+    margin-left: auto;
+    color: var(--muted);
+    font-weight: 400;
+}
+.col h2 .col-hide {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-size: var(--font-size-lg);
+    line-height: 1;
+    padding: 0 2px;
+    margin-left: 6px;
+    cursor: pointer;
+    opacity: 0;
+    transition:
+        opacity 120ms,
+        color 120ms;
+}
+.col:hover h2 .col-hide,
+.col h2 .col-hide:focus-visible {
+    opacity: 1;
+}
+.col h2 .col-hide:hover {
+    color: var(--ink);
+}
+.col.col-hidden {
+    display: none;
+}
+/* When any column is hidden, drop the per-column cap so the remaining
+   visible columns flex to fill the freed horizontal space. */
+.board.has-hidden-cols .col {
+    max-width: none;
+}
+.col .swatch {
+    width: 8px;
+    height: 8px;
+    border-radius: var(--radius-circle);
+    border: 1px solid var(--rule);
+    display: inline-block;
+}
+.col[data-bucket="0-backlog"] .swatch {
+    background: var(--bucket-backlog);
+    border-color: var(--bucket-backlog-border);
+}
+.col[data-bucket="1-staging"] .swatch {
+    background: var(--bucket-staging);
+    border-color: var(--bucket-staging-border);
+}
+.col[data-bucket="2-stuck"] .swatch {
+    background: var(--bucket-stuck);
+    border-color: var(--bucket-stuck-border);
+}
+.col[data-bucket="3-building"] .swatch {
+    background: var(--bucket-building);
+    border-color: var(--bucket-building-border);
+}
+.col[data-bucket="4-testing"] .swatch {
+    background: var(--bucket-testing);
+    border-color: var(--bucket-testing-border);
+}
+.col[data-bucket="5-validating"] .swatch {
+    background: var(--bucket-validating);
+    border-color: var(--bucket-validating-border);
+}
+.col[data-bucket="6-complete"] .swatch {
+    background: var(--bucket-complete);
+    border-color: var(--bucket-complete-border);
+}
+.col[data-bucket="7-archive"] .swatch {
+    background: var(--bucket-archive);
+    border-color: var(--bucket-archive-border);
+}
+
+.col .list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 60px;
+}
+.col.dropping .list {
+    background: var(--row-hover);
+    outline: 1.5px dashed var(--accent);
+    outline-offset: -8px;
+}
+
+/* Insertion indicator for intra-column drag-to-reorder. Rendered between the
+   cards the dragged card would slot between; cleared on drop / dragend. */
+.drop-placeholder {
+    height: 3px;
+    margin: 0;
+    background: var(--accent);
+    border-radius: var(--radius-xs);
+    opacity: 0.8;
+}
+
+/* ── Card ──────────────────────────────────────────────────────────── */
+.card {
+    background: var(--paper);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 9px 11px;
+    cursor: grab;
+    user-select: none;
+    transition:
+        border-color 120ms,
+        background 120ms,
+        box-shadow 120ms;
+}
+.card:hover {
+    border-color: color-mix(in oklch, var(--accent) 35%, var(--border));
+    background: color-mix(in oklch, var(--paper) 92%, var(--accent));
+    box-shadow: 0 1px 0 rgba(var(--shadow-rgb), 0.04);
+}
+.card:active {
+    cursor: grabbing;
+}
+.card .card-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.card .card-header .id {
+    margin-right: auto;
+}
+.prio-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: var(--radius-circle);
+    display: inline-block;
+    background: var(--muted);
+    flex-shrink: 0;
+}
+.prio-dot.prio-High {
+    background: var(--prio-high);
+}
+.prio-dot.prio-Medium {
+    background: var(--prio-medium);
+}
+.prio-dot.prio-Low {
+    background: var(--prio-low);
+}
+
+/* Kanban-mode cards encode priority as a 3px inset left stripe.
+   Scoped to :not(.compact) so list-mode rows keep using .prio-dot. */
+.card:not(.compact).prio-High {
+    box-shadow: inset 3px 0 0 var(--prio-high);
+}
+.card:not(.compact).prio-Medium {
+    box-shadow: inset 3px 0 0 var(--prio-medium);
+}
+.card:not(.compact).prio-Low {
+    box-shadow: inset 3px 0 0 var(--prio-low);
+}
+.card:not(.compact).prio-High:hover {
+    box-shadow:
+        inset 3px 0 0 var(--prio-high),
+        0 1px 0 rgba(var(--shadow-rgb), 0.04);
+}
+.card:not(.compact).prio-Medium:hover {
+    box-shadow:
+        inset 3px 0 0 var(--prio-medium),
+        0 1px 0 rgba(var(--shadow-rgb), 0.04);
+}
+.card:not(.compact).prio-Low:hover {
+    box-shadow:
+        inset 3px 0 0 var(--prio-low),
+        0 1px 0 rgba(var(--shadow-rgb), 0.04);
+}
+.card .id {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--muted);
+    letter-spacing: 0.3px;
+}
+.dom-text,
+.prio-text {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    letter-spacing: 0.2px;
+    color: var(--muted);
+}
+.dom-text.dom-app {
+    color: var(--domain-app);
+}
+.dom-text.dom-infra {
+    color: var(--domain-infra);
+}
+.dom-text.dom-docs {
+    color: var(--domain-docs);
+}
+.dom-text.dom-meta {
+    color: var(--domain-meta);
+}
+.prio-text.prio-High {
+    color: var(--prio-high);
+}
+.prio-text.prio-Medium {
+    color: var(--prio-medium);
+}
+.prio-text.prio-Low {
+    color: var(--prio-low);
+}
+.card .title {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: var(--font-size-base);
+    color: var(--ink);
+    margin: 3px 0 7px;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+.card .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    font-size: var(--font-size-xs);
+}
+/* ── Compact / list-mode row ────────────────────────────────────────── */
+.card.compact {
+    display: grid;
+    grid-template-columns: auto auto auto 1fr;
+    align-items: center;
+    gap: 10px;
+    padding: 5px 10px;
+    border-radius: var(--radius);
+}
+.card.compact .id {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    color: var(--muted);
+    letter-spacing: 0.3px;
+    min-width: 56px;
+}
+.card.compact .title {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: var(--font-size-sm);
+    color: var(--ink);
+    margin: 0;
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+.col .list:has(.card.compact) {
+    gap: 4px;
+}
+
+.card .pill {
+    padding: 1px 6px;
+    border-radius: var(--radius-xl);
+    background: var(--paper-2);
+    color: var(--muted);
+    border: 1px solid var(--border);
+    font-family: var(--font-mono);
+    letter-spacing: 0.2px;
+}
+
+.col.archive .load-btn {
+    margin: 10px;
+    padding: 10px;
+    background: var(--paper);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-md);
+    text-align: center;
+    cursor: pointer;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    letter-spacing: 0.4px;
+}
+.col.archive .load-btn:hover {
+    color: var(--ink);
+    border-color: var(--accent);
+}
+
+/* Per-column bulk action (e.g. "Complete all" in Validating). */
+.col-action-btn {
+    margin: 6px 10px 0;
+    padding: 6px 10px;
+    background: var(--paper);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    letter-spacing: 0.4px;
+}
+.col-action-btn:hover {
+    color: var(--ink);
+    border-color: var(--accent);
+}
+.col-action-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+}

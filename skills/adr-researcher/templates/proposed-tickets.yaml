@@ -1,0 +1,10 @@
+proposed_tickets:
+  - draft_id: DRAFT-1
+    title: "<short, imperative>"
+    domain: <inherit from ADR unless specifically different>
+    depends_on: []
+  - draft_id: DRAFT-2
+    title: "..."
+    domain: ...
+    depends_on: [DRAFT-1]        # sibling draft inside this ADR
+    # depends_on may also contain real TKT-NNN for cross-ADR deps

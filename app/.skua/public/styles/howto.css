@@ -1,0 +1,128 @@
+/* ── How-to modal ─────────────────────────────────────────────────── */
+.how-to-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-circle);
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    cursor: pointer;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-base);
+    padding: 0;
+    line-height: 1;
+    transition:
+        color 120ms,
+        border-color 120ms;
+}
+.how-to-btn:hover {
+    color: var(--ink);
+    border-color: var(--ink);
+}
+.howto-card {
+    width: min(640px, calc(100% - 32px));
+}
+.howto-body {
+    gap: 0;
+    padding: 0;
+}
+.howto-section {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--rule);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.howto-section:last-child {
+    border-bottom: none;
+}
+.howto-h {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.9px;
+}
+.howto-lifecycle {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+.howto-lifecycle li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: var(--font-size-base);
+    line-height: 1.4;
+}
+.ht-swatch {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: var(--radius-circle);
+    flex: none;
+}
+.howto-p {
+    margin: 0;
+    font-size: var(--font-size-base);
+    line-height: 1.5;
+}
+.howto-ol {
+    margin: 0;
+    padding-left: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.howto-ol li {
+    font-size: var(--font-size-base);
+    line-height: 1.5;
+}
+.howto-prompts {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.howto-prompts li {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.howto-prompt {
+    display: block;
+    background: var(--paper-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 5px 9px;
+    font-size: var(--font-size-base);
+    color: var(--ink);
+    user-select: all;
+    cursor: text;
+}
+.howto-prompt-desc {
+    font-size: var(--font-size-sm);
+    color: var(--muted);
+    padding-left: 2px;
+}
+.howto-callout {
+    margin-top: 4px;
+    padding: 9px 12px;
+    background: rgba(254, 100, 11, 0.07);
+    border: 1px solid rgba(254, 100, 11, 0.22);
+    border-left: 3px solid var(--peach);
+    border-radius: var(--radius);
+    font-size: var(--font-size-base);
+    line-height: 1.5;
+    color: var(--ink);
+}

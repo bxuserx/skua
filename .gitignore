@@ -1,0 +1,8 @@
+.DS_Store
+*.tmp
+*.log
+node_modules/
+
+# Generated dashboard graph cache — rebuilt on demand by the server / repo-map skill.
+.skua/cache/
+app/.skua/cache/

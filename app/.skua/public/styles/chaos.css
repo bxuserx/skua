@@ -1,0 +1,71 @@
+/* chaos mode — the "a run is active" banner (see public/chaos-banner.js).
+   Higher-stakes than the agentic flow-chip, so it's a persistent full-width
+   bar, not a dismissible chip. Themed via tokens (tokens.css) so it reads as
+   a neutral "active" panel on both light and dark — never a white gap. */
+
+.chaos-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 16px;
+  font-size: 13px;
+  line-height: 1.3;
+  color: var(--ink);
+  background: var(--paper-2);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+/* display:flex above outranks the UA [hidden] rule, so chaos-banner.js
+   setting el.hidden alone wouldn't collapse the empty bar — re-assert it. */
+.chaos-banner[hidden] {
+  display: none;
+}
+
+.chaos-banner.paused {
+  background: var(--stack-banner-bg);
+  border-bottom-color: var(--stack-banner-border);
+  color: var(--stack-banner-text);
+}
+
+.chaos-banner code {
+  background: color-mix(in oklch, var(--ink) 10%, transparent);
+  padding: 0 4px;
+  border-radius: 3px;
+  font-size: 0.92em;
+}
+
+.chaos-banner .chaos-hint {
+  margin-left: auto;
+  opacity: 0.8;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.chaos-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--mauve);
+  box-shadow: 0 0 6px color-mix(in oklch, var(--mauve) 60%, transparent);
+  animation: chaos-pulse 1.4s ease-in-out infinite;
+}
+
+.chaos-banner.paused .chaos-dot {
+  background: var(--stack-banner-border);
+  box-shadow: 0 0 6px var(--stack-banner-border);
+  animation: none;
+}
+
+@keyframes chaos-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}

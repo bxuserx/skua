@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>skua terminal</title>
+        <!-- Scheme registry must load before the bootstrap (which reads it) and
+             before terminal-xterm.js (which applies it). Classic script. -->
+        <script src="/terminal-schemes.js"></script>
+        <!-- Background bootstrap: paint the page in the active scheme's surface
+             colour before xterm mounts, so the framed terminal isn't a flash of
+             the wrong colour. The #term padding reveals this background behind
+             the canvas. Same-origin as the dashboard, so the `storage` event
+             (terminal-xterm.js) keeps it in sync when the scheme changes. -->
+        <script>
+            (function () {
+                try {
+                    var id = window.skuaTermScheme(
+                        localStorage.getItem(window.SKUA_TERM_SCHEME_KEY),
+                    );
+                    document.documentElement.style.background =
+                        window.SKUA_TERM_SCHEMES[id].theme.background;
+                } catch (e) {}
+            })();
+        </script>
+        <link rel="stylesheet" href="/vendor/xterm.css" />
+        <style>
+            /* html carries the scheme background (set by the bootstrap above and
+               kept current by terminal-xterm.js); body stays transparent so the
+               #term padding reveals that single source of truth. */
+            html,
+            body {
+                margin: 0;
+                height: 100%;
+            }
+            #term {
+                position: absolute;
+                inset: 0;
+                padding: 4px 6px;
+                box-sizing: border-box;
+            }
+            .xterm {
+                height: 100%;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="term"></div>
+        <!-- UMD globals must load before the client: xterm.js → `Terminal`,
+             addon-fit.js → `FitAddon.FitAddon`. Classic scripts, in order.
+             No renderer addon is loaded, so xterm uses its built-in DOM
+             renderer (correct cell clearing; no canvas texture-atlas staleness). -->
+        <script src="/vendor/xterm.js"></script>
+        <script src="/vendor/addon-fit.js"></script>
+        <script src="/terminal-xterm.js"></script>
+    </body>
+</html>

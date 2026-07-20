@@ -1,0 +1,868 @@
+/* ── Terminal tab ──────────────────────────────────────────────────────
+   Master-detail layout: a session list on the left, the active ttyd
+   session embedded via <iframe> on the right. The body becomes a flex
+   column so the stage fills the viewport below the sticky navbar without
+   hardcoding its height. All colours come from the themed CSS variables,
+   so light/dark are handled automatically. */
+body.terminal-page {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    margin: 0;
+    overflow: hidden;
+}
+main.terminal-page {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: grid;
+    /* Sidebar width is user-draggable (see .term-resizer + terminal.js). The
+       variable is set inline on this element from the persisted value; 276px is
+       the default when nothing is saved. */
+    grid-template-columns: var(--term-sidebar-w, 276px) minmax(0, 1fr);
+    position: relative;
+}
+/* Collapsed: the sidebar shrinks to a narrow icon rail — the chevron, a square
+   "+" to open a terminal, and one numbered square per session to switch between
+   them. The chevron expands it again. */
+main.terminal-page.sidebar-collapsed {
+    grid-template-columns: 52px minmax(0, 1fr);
+}
+
+/* Control area, stacked: [ working dir ...... ][ save ] on top, then
+   [ + Terminal ] below. `save` and `+ Terminal` share `.term-btn` so they
+   look identical. */
+.term-bar {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--rule);
+    background: var(--paper);
+}
+.term-cwd-form {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.term-cwd-form input {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    padding: 6px 9px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: var(--bg);
+    color: var(--ink);
+}
+.term-cwd-form input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--focus);
+}
+.term-btn {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    height: 30px;
+    padding: 0 12px;
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    line-height: 1;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--ink);
+    cursor: pointer;
+}
+.term-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+.term-search-btn {
+    width: 30px;
+    padding: 0;
+}
+.term-search-icon {
+    font-size: 1.35rem;
+}
+.term-bar-row2 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.term-cwd-saved {
+    flex: 0 0 auto;
+    color: var(--green);
+    font-size: 0.78rem;
+    white-space: nowrap;
+}
+
+/* Color-scheme picker: [ theme ][ select ▾ ]. The terminal is a browser
+   xterm.js surface, so its palette is one of skua's named schemes (see
+   terminal-schemes.js) rather than the user's native terminal. The select
+   matches the cwd input's look. */
+.term-bar-row3 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.term-scheme-label {
+    flex: 0 0 auto;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+}
+.term-scheme-select {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    padding: 5px 8px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: var(--bg);
+    color: var(--ink);
+    cursor: pointer;
+}
+.term-scheme-select:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--focus);
+}
+
+/* Left panel: control bar (top) + session list (scrolls). The bar — and thus
+   the working-dir input — is exactly the width of this panel; the iframe stage
+   takes the rest of the row at full height. */
+.term-sidebar {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    border-right: 1px solid var(--rule);
+    background: var(--paper);
+}
+
+/* Draggable divider sitting on the sidebar/stage seam. Absolutely positioned
+   against main.terminal-page (position: relative) so it tracks the live
+   --term-sidebar-w. A hair wide, transparent until hovered/dragged; the wider
+   hit area makes it easy to grab. terminal.js owns the drag + persistence. */
+.term-resizer {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: calc(var(--term-sidebar-w, 276px) - 3px);
+    width: 7px;
+    z-index: 6;
+    cursor: col-resize;
+    background: transparent;
+    border: 0;
+    padding: 0;
+    touch-action: none;
+}
+.term-resizer::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 3px;
+    width: 1px;
+    background: transparent;
+    transition: background 0.12s ease;
+}
+.term-resizer:hover::after,
+main.terminal-page.is-resizing .term-resizer::after {
+    background: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent);
+}
+.term-resizer:focus-visible {
+    outline: none;
+}
+.term-resizer:focus-visible::after {
+    background: var(--accent);
+    box-shadow: 0 0 0 1px var(--focus);
+}
+/* While dragging, kill iframe pointer capture so mouse-moves keep reaching the
+   parent document, and force the resize cursor everywhere. */
+main.terminal-page.is-resizing .term-frame {
+    pointer-events: none;
+}
+main.terminal-page.is-resizing {
+    cursor: col-resize;
+    user-select: none;
+}
+/* Collapsed rail is a fixed width — nothing to drag. */
+main.terminal-page.sidebar-collapsed .term-resizer {
+    display: none;
+}
+
+/* Drawer header — the theme picker fills the row and the collapse chevron is
+   pinned to its right. Stays visible in both states, so when the panel is a
+   thin rail the chevron is still there to reopen it (the picker hides). */
+.term-sidebar-head {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px;
+    border-bottom: 1px solid var(--rule);
+}
+/* Collapse toggle lives in the toolbar beside the utils caret — an outlined
+   .term-tool-btn like its neighbours (border, hover accent inherited), with an
+   accent chevron so the two carets read as a matched blue pair. In the collapsed
+   rail it grows to match the "+"/search squares. */
+.term-collapse {
+    color: var(--accent);
+}
+main.terminal-page.sidebar-collapsed .term-collapse {
+    width: 36px;
+    height: 36px;
+}
+.term-collapse-icon {
+    font-size: 1.1rem;
+    line-height: 1;
+    transition: transform 0.15s ease;
+}
+/* Open: chevron points left (collapse). Collapsed: flip to point right (expand)
+   and hide the panel contents so only the rail + chevron remain. */
+main.terminal-page.sidebar-collapsed .term-collapse-icon {
+    transform: rotate(180deg);
+}
+/* Collapsed: the toolbar stacks to a thin vertical rail — the expand chevron on
+   top, then the search magnifier and the "+"; the utils dropdown + its caret are
+   dropped. Without this the toolbar stays a horizontal row at rail width and the
+   caret AND the search button overflow off-screen — you can collapse the panel
+   but there's nothing left to click to reopen it or to search. */
+main.terminal-page.sidebar-collapsed .term-toolbar {
+    flex-direction: column-reverse;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 0 6px;
+    border-bottom: 0;
+}
+main.terminal-page.sidebar-collapsed .term-utils,
+main.terminal-page.sidebar-collapsed #term-utils-toggle,
+main.terminal-page.sidebar-collapsed .term-new-text {
+    display: none;
+}
+main.terminal-page.sidebar-collapsed #term-new {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    font-size: 1.3rem;
+}
+
+/* Collapsed session list: each tab becomes a numbered square you click to
+   switch to it. The live status dot rides in the corner; idle dots stay hidden
+   (their default), so a quiet terminal is just its number. */
+main.terminal-page.sidebar-collapsed .term-list {
+    align-items: center;
+    padding: 4px;
+    gap: 4px;
+    counter-reset: term;
+}
+main.terminal-page.sidebar-collapsed .term-item {
+    counter-increment: term;
+    width: 36px;
+    border-radius: 8px;
+}
+main.terminal-page.sidebar-collapsed .term-item.active {
+    box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+main.terminal-page.sidebar-collapsed .term-item-label {
+    position: relative;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    height: 34px;
+    padding: 0;
+}
+main.terminal-page.sidebar-collapsed .term-item-label::before {
+    content: counter(term);
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+main.terminal-page.sidebar-collapsed
+    .term-item.active
+    .term-item-label::before {
+    color: var(--accent);
+}
+main.terminal-page.sidebar-collapsed .term-item-cwd,
+main.terminal-page.sidebar-collapsed .term-item-title,
+main.terminal-page.sidebar-collapsed .term-item-dead,
+main.terminal-page.sidebar-collapsed .term-item-fork,
+main.terminal-page.sidebar-collapsed .term-item-close {
+    display: none;
+}
+main.terminal-page.sidebar-collapsed .term-item-name {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    gap: 0;
+}
+.term-error {
+    margin: 0;
+    color: var(--red);
+    font-size: 0.75rem;
+    word-break: break-word;
+}
+
+.term-list {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    list-style: none;
+    margin: 0;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.term-item {
+    display: flex;
+    align-items: stretch;
+    border-radius: 6px;
+    overflow: hidden;
+}
+.term-item:hover {
+    background: var(--term-tab-hover);
+}
+.term-item.active {
+    background: var(--term-tab-active);
+}
+.term-item-label {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding: 7px 8px;
+    border: 0;
+    background: none;
+    text-align: left;
+    cursor: pointer;
+    color: var(--ink);
+    font-family: var(--font-mono);
+}
+/* Rename hides the label via label.hidden; without this the author display:flex
+   above beats the UA [hidden] rule, so the label stays and splits the row with
+   the rename input (both flex:1 1 auto). Truly hiding it lets the input grow to
+   the full tab width, minus the fork + close controls (both flex:0 0 auto). */
+.term-item-label[hidden] {
+    display: none;
+}
+.term-item-name {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.82rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.term-item.active .term-item-name {
+    color: var(--accent);
+}
+.term-item-dead {
+    color: var(--yellow);
+    font-size: 0.72rem;
+}
+.term-item-cwd {
+    font-size: 0.68rem;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    direction: rtl; /* keep the meaningful tail of long paths visible */
+    text-align: left;
+}
+/* Fork: open a NEW terminal that resumes this tab's Claude session as a divergent
+   copy (the server builds `claude --resume … --fork-session`). Reveals on
+   hover/active like the close slider; hidden until the tab has a live Claude
+   session id, then greyed-but-visible on hover so the affordance is discoverable. */
+.term-item-fork {
+    flex: 0 0 auto;
+    align-self: center;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    margin: 0 3px 0 0;
+    padding: 0;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+    background: var(--term-tab-active);
+    color: var(--muted);
+    cursor: pointer;
+    opacity: 0;
+    transition:
+        opacity 0.12s ease,
+        color 0.12s ease,
+        border-color 0.12s ease;
+}
+.term-item:hover .term-item-fork,
+.term-item.active .term-item-fork {
+    opacity: 1;
+}
+.term-item-fork:hover:not(:disabled) {
+    color: var(--accent);
+    border-color: var(--accent);
+}
+.term-item-fork:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+    opacity: 1;
+}
+.term-item-fork:disabled {
+    cursor: default;
+}
+.term-item:hover .term-item-fork:disabled,
+.term-item.active .term-item-fork:disabled {
+    opacity: 0.28; /* faint — hints "run claude here to enable forking" */
+}
+
+/* Slide-to-close: a short, minimalist vertical slider pinned to the right of each
+   tab — a custom track div + thumb div (no native range / vendor pseudo-elements;
+   role="slider" + keyboard wired in terminal.js). The track is a bordered,
+   translucent capsule; a white thumb rides it from top (open) to bottom (close).
+   Reveals on hover/active like the old × did; the thumb position is driven by the
+   `--f` custom property (0=top … 1=bottom) that the slider logic updates. */
+.term-item-close {
+    flex: 0 0 auto;
+    align-self: center;
+    position: relative;
+    box-sizing: border-box;
+    width: 16px;
+    height: 34px;
+    margin: 0 7px 0 0;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--term-tab-active); /* translucent capsule the thumb travels */
+    cursor: ns-resize;
+    touch-action: none; /* let the pointer-drag own the vertical gesture on touch */
+    opacity: 0;
+    transition: opacity 0.12s ease;
+}
+.term-item:hover .term-item-close,
+.term-item.active .term-item-close {
+    opacity: 1;
+}
+.term-item-close:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+.term-item-close-thumb {
+    position: absolute;
+    left: 50%;
+    box-sizing: border-box;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #fff;
+    border: 1px solid var(--rule);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    /* top = open, bottom = close; `100% - 12px` is the travel inside the capsule */
+    top: calc(var(--f, 0) * (100% - 12px));
+    transform: translateX(-50%);
+    transition: top 0.14s ease;
+}
+.term-item-close.is-dragging .term-item-close-thumb {
+    transition: none; /* track the finger 1:1 while dragging; snap animates on release */
+}
+
+.term-stage {
+    position: relative;
+    min-width: 0;
+    background: var(--bg);
+}
+.term-frame {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+}
+.term-frame[hidden] {
+    display: none;
+}
+.term-empty {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 1rem;
+    text-align: center;
+    color: var(--muted);
+}
+.term-empty p {
+    margin: 0;
+}
+.term-empty-hint {
+    font-size: 0.85rem;
+}
+.term-empty code {
+    font-family: var(--font-mono);
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: var(--paper-2);
+    color: var(--ink);
+}
+
+@media (max-width: 640px) {
+    main.terminal-page {
+        grid-template-columns: 184px minmax(0, 1fr);
+    }
+    /* Fixed width on narrow screens — no drag handle. */
+    .term-resizer {
+        display: none;
+    }
+}
+
+/* Per-tab live status dot (working / needs-you / idle) + AI summary line.
+   Sits as the first child of .term-item-name (which is flex, gap 5px). */
+.term-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: var(--muted);
+}
+.term-status-dot.is-idle {
+    display: none;
+}
+.term-status-dot.is-working {
+    background: var(--yellow);
+    animation: skua-pulse 1.2s ease-in-out infinite;
+}
+.term-status-dot.is-attention {
+    background: var(--red);
+}
+.term-status-dot.is-done {
+    background: var(--green);
+}
+.term-item-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+/* When the sub-line shows the AI summary instead of the cwd: read left-to-right
+   (the cwd line is rtl to keep path tails visible) and set it apart. */
+.term-item-cwd.is-summary {
+    direction: ltr;
+    text-align: left;
+    font-style: italic;
+    color: var(--ink);
+    opacity: 0.75;
+}
+
+@keyframes skua-pulse {
+    0%,
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.4;
+        transform: scale(0.65);
+    }
+}
+
+/* ── terminal toolbar + utils dropdown ─────────────────────────────────────── */
+.term-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--rule);
+    background: var(--paper);
+}
+.term-tool-btn {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    font-family: var(--font-mono);
+    font-size: 1.1rem;
+    line-height: 1;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--ink);
+    cursor: pointer;
+}
+.term-tool-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+/* Caret buttons (utils toggle + collapse) — accent-blue squares, grouped to the
+   right. margin-left:auto on the first one pushes the pair over. */
+/* Utilities disclosure — a quiet outlined toggle (matches +Term / search)
+   pushed to the right, paired with the collapse caret. The chevron is tinted
+   accent so it hints "there's more here" without the old solid-blue square
+   out-shouting the primary actions; when the panel is open the whole button
+   lights up (accent border + faint accent wash) and the chevron flips. */
+.term-utils-toggle {
+    margin-left: auto;
+    color: var(--accent);
+}
+.term-utils-toggle[aria-expanded="true"] {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 12%, var(--bg));
+}
+.term-utils-caret {
+    display: inline-block;
+    transition: transform 0.15s ease;
+}
+.term-utils-toggle[aria-expanded="true"] .term-utils-caret {
+    transform: rotate(180deg);
+}
+
+/* Utils dropdown: theme picker + default-dir form + vim-tips, revealed below
+   the toolbar by the centered caret. */
+.term-utils {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--rule);
+    background: var(--paper);
+}
+.term-utils[hidden] {
+    display: none;
+}
+.term-utils-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+/* ── neovim tips button + modal content ──────────────────────────────────────── */
+.term-tips-btn {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    height: 30px;
+    padding: 0 10px;
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    line-height: 1;
+    border: 1px dashed var(--border);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+}
+.term-tips-btn:hover {
+    border-style: solid;
+    border-color: var(--accent);
+    color: var(--accent);
+}
+.term-tips-icon {
+    font-size: 0.9rem;
+    line-height: 1;
+}
+
+/* Terminal tips modal body: hero callouts + grouped command lists. */
+/* The terminal-tips modal is a wide two-purpose reference (editor +
+   multiplexer), so it overrides the default 520px modal width. */
+.term-tips-card {
+    width: min(940px, calc(100% - 32px));
+}
+/* Big, bold divider heading naming each half of the reference. */
+.term-tips-title {
+    margin: 6px 0 2px;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 1.45rem;
+    line-height: 1.2;
+    color: var(--ink);
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--accent);
+}
+.term-tips-title:first-child {
+    margin-top: 0;
+}
+.term-tips-hero {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 12px;
+    background: var(--paper-2);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius);
+}
+.term-tips-key {
+    flex: 0 0 auto;
+    font-family: var(--font-mono);
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--accent);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 4px 8px;
+    line-height: 1;
+}
+.term-tips-hero-text {
+    font-size: 0.85rem;
+    line-height: 1.45;
+    color: var(--ink);
+}
+.term-tips-hero-text code {
+    font-family: var(--font-mono);
+    font-size: 0.82em;
+    color: var(--accent);
+}
+.term-tips-section {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.term-tips-h {
+    margin: 0;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--accent);
+}
+.term-tips-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px 16px;
+}
+.term-tips-list li {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 0.82rem;
+    padding: 3px 0;
+    border-bottom: 1px solid var(--rule);
+}
+.term-tips-list code,
+.term-tips-body kbd {
+    flex: 0 0 auto;
+    font-family: var(--font-mono);
+    font-size: 0.8em;
+    color: var(--ink);
+    background: var(--paper-2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 5px;
+    line-height: 1.3;
+    white-space: nowrap;
+}
+.term-tips-list span {
+    color: var(--muted);
+}
+/* Two sections side by side (e.g. vertical vs horizontal movement) so each
+   reads as its own visually distinct column. */
+.term-tips-cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px 24px;
+}
+.term-tips-list--single {
+    grid-template-columns: 1fr;
+}
+@media (max-width: 560px) {
+    .term-tips-list,
+    .term-tips-cols {
+        grid-template-columns: 1fr;
+    }
+}
+
+
+/* ── tab drag-reorder + inline rename ─────────────────────────────────────── */
+.term-item.dragging {
+    opacity: 0.5;
+}
+
+.term-item-rename-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 4px 6px;
+    padding: 3px 6px;
+    border: 1px solid var(--accent);
+    border-radius: 5px;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+}
+.term-item-rename-input:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+/* ── tab hovercard ─────────────────────────────────────────────────────────── */
+.term-hovercard {
+    position: fixed;
+    z-index: 60;
+    max-width: 340px;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    box-shadow: var(--shadow-lg);
+    font-family: var(--font-mono);
+    pointer-events: none;
+}
+/* display:flex above outranks the UA [hidden] rule, so hoverEl.hidden alone
+   wouldn't hide it — this companion rule is what actually toggles it off. */
+.term-hovercard[hidden] {
+    display: none;
+}
+.term-hovercard-title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--ink);
+    overflow-wrap: anywhere;
+}
+.term-hovercard-summary {
+    font-size: 0.72rem;
+    font-style: italic;
+    color: var(--ink);
+    opacity: 0.85;
+    overflow-wrap: anywhere;
+}
+.term-hovercard-cwd {
+    font-size: 0.68rem;
+    color: var(--muted);
+    overflow-wrap: anywhere;
+}
+.term-hovercard-notif {
+    font-size: 0.7rem;
+    color: var(--red);
+    overflow-wrap: anywhere;
+}
+.term-hovercard-hint {
+    margin-top: 2px;
+    font-size: 0.62rem;
+    color: var(--muted);
+    opacity: 0.7;
+}

@@ -1,0 +1,46 @@
+# Security Posture — Suppression Allowlist
+#
+# Applied AFTER the engine's findings are deduplicated. Lists known, intentional
+# non-findings so the audit can mark them "Suppressed" (with an expiry) instead
+# of re-surfacing them every run. Suppressed items are NEVER silently dropped —
+# they appear in their own report section.
+#
+# Format: standard YAML list of suppression objects.
+#
+# Required fields per entry:
+#   - id              kebab-case stable identifier
+#   - pattern         match criteria: cwe (list) + optional resource_glob
+#   - reason          why intentional (link to memory / ADR / vendor docs)
+#   - expires         YYYY-MM-DD (mandatory — ≤6 months repo-specific,
+#                     ≤12 months vendor-driven)
+#   - source          where this decision is documented
+
+# ---------------------------------------------------------------------------
+# Active suppressions
+# ---------------------------------------------------------------------------
+# Ships EMPTY. Add an entry only for a finding you've reviewed and accepted as
+# intentional. Example shape (commented — adapt to your repo, then uncomment):
+#
+#   - id: client-sdk-config-public
+#     pattern:
+#       cwe: [CWE-200]
+#       resource_glob: "<frontend-dir>/**/<sdk-init>*"
+#     reason: |
+#       The client SDK config (e.g. a Firebase / Supabase / Clerk public key)
+#       is public-by-design per the vendor's docs; the security boundary is the
+#       server-side rules/policies, not key secrecy.
+#     expires: 2026-12-31
+#     source: <link to vendor docs / ADR / memory entry>
+
+suppressions: []
+
+# ---------------------------------------------------------------------------
+# Schema notes
+# ---------------------------------------------------------------------------
+# - `cwe` is a list — a finding matches if it carries ANY listed CWE.
+# - `resource_glob` is an optional shell-glob matched against the finding's
+#   primary resource cite.
+# - Match logic: a finding matches if (cwe matches) AND (resource_glob matches,
+#   if present).
+# - An empty `suppressions:` list is valid — the audit emits a "Suppressed (0)"
+#   section so the user can see nothing is hidden.

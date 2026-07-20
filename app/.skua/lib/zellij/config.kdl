@@ -1,0 +1,121 @@
+// skua's zellij config — the zellij analog of the tmux branch's
+// skua-tmux.conf. lib/zellij/ is passed as ZELLIJ_CONFIG_DIR on every skua
+// zellij invocation (so default_layout resolves in ./layouts), and skua's
+// sessions live in a private ZELLIJ_SOCKET_DIR (.skua/cache/terminals/zellij),
+// invisible to any personal zellij. Targets zellij ≥ 0.40 (probed on 0.44.3).
+
+// The bare-pane layout (layouts/skua.kdl): no tab-bar/status-bar plugins —
+// the skua dashboard owns all chrome, the terminal is the entire screen.
+// (`zellij attach --create` ignores a --layout flag; the config default is the
+// reliable mechanism.)
+default_layout "skua"
+
+// Pass every keystroke to the app (vim/claude). Default (locked) mode IS tmux's
+// "keys go to the app" behavior — the only interceptors are the tmux prefix
+// (Ctrl-a, see keybinds below) and Ctrl-g (native zellij escape hatch to Normal).
+default_mode "locked"
+
+// Belt-and-suspenders with the bare layout: no frames, no UI arrows.
+pane_frames false
+simplified_ui true
+
+// Wheel scrolls zellij's server-side scrollback; a drag selects and (zellij
+// default) copies via OSC 52, which terminal-xterm.js forwards to the system
+// clipboard.
+mouse_mode true
+scroll_buffer_size 10000
+
+// Persistence = the live zellij server. No resurrection ghosts: a dead session
+// is dead (the dashboard prunes its record), never a zombie layout.
+session_serialization false
+
+// A crashing client detaches rather than killing the session.
+on_force_close "detach"
+
+show_startup_tips false
+show_release_notes false
+
+// ── tmux keybindings (popular config) ────────────────────────────────────────
+// skua runs in `locked` mode so every keystroke reaches the app (vim/claude).
+// That mirrors tmux exactly: non-prefix keys go straight through, and a single
+// prefix key (Ctrl-a) opens a one-shot command mode. Each command returns to
+// `Locked` (not zellij's `Normal`) so you land back "in the shell" like tmux.
+// Bindings follow the common "sensible" tmux set: mnemonic |/- splits and vim
+// h/j/k/l navigation, on top of the vanilla defaults (%/" and arrows kept too).
+//   Ctrl-a  then:
+//     |  split right       -  split down       %/"  split right/down (aliases)
+//     h/j/k/l  select pane arrows  select pane {/}  move pane
+//     H/J/K/L  resize (repeatable) Ctrl-arrows  resize (repeatable)
+//     c  new window (tab)  n/p  next/prev window   1-9  select window
+//     o  next pane         x  kill pane        &  kill window
+//     z  zoom pane         !  break pane out   Space  next layout
+//     ,  rename window     d  detach           [  copy/scroll mode
+//     Ctrl-a  send a literal Ctrl-a            Esc  cancel prefix
+keybinds {
+    // Reach the prefix from locked mode (default config only binds the prefix in
+    // non-locked modes). Merged onto defaults, so Ctrl-g still works too.
+    locked {
+        bind "Ctrl a" { SwitchToMode "Tmux"; }
+    }
+    // Own the whole prefix mode so every command returns to Locked.
+    tmux clear-defaults=true {
+        bind "Ctrl a" { Write 1; SwitchToMode "Locked"; }
+        bind "Esc" { SwitchToMode "Locked"; }
+        // Splits — mnemonic |/- (popular) plus vanilla %/" aliases.
+        bind "|" { NewPane "Right"; SwitchToMode "Locked"; }
+        bind "-" { NewPane "Down"; SwitchToMode "Locked"; }
+        bind "%" { NewPane "Right"; SwitchToMode "Locked"; }
+        bind "\"" { NewPane "Down"; SwitchToMode "Locked"; }
+        bind "c" { NewTab; SwitchToMode "Locked"; }
+        bind "," { SwitchToMode "RenameTab"; }
+        bind "n" { GoToNextTab; SwitchToMode "Locked"; }
+        bind "p" { GoToPreviousTab; SwitchToMode "Locked"; }
+        bind "o" { FocusNextPane; SwitchToMode "Locked"; }
+        bind "x" { CloseFocus; SwitchToMode "Locked"; }
+        bind "&" { CloseTab; SwitchToMode "Locked"; }
+        bind "z" { ToggleFocusFullscreen; SwitchToMode "Locked"; }
+        bind "!" { BreakPane; SwitchToMode "Locked"; }
+        bind "d" { Detach; }
+        bind "Space" { NextSwapLayout; SwitchToMode "Locked"; }
+        bind "[" { SwitchToMode "Scroll"; }
+        // Pane navigation — vim h/j/k/l (popular) plus arrows.
+        bind "h" { MoveFocus "Left"; SwitchToMode "Locked"; }
+        bind "j" { MoveFocus "Down"; SwitchToMode "Locked"; }
+        bind "k" { MoveFocus "Up"; SwitchToMode "Locked"; }
+        bind "l" { MoveFocus "Right"; SwitchToMode "Locked"; }
+        bind "Left" { MoveFocus "Left"; SwitchToMode "Locked"; }
+        bind "Right" { MoveFocus "Right"; SwitchToMode "Locked"; }
+        bind "Up" { MoveFocus "Up"; SwitchToMode "Locked"; }
+        bind "Down" { MoveFocus "Down"; SwitchToMode "Locked"; }
+        bind "{" { MovePane "Left"; SwitchToMode "Locked"; }
+        bind "}" { MovePane "Right"; SwitchToMode "Locked"; }
+        bind "1" { GoToTab 1; SwitchToMode "Locked"; }
+        bind "2" { GoToTab 2; SwitchToMode "Locked"; }
+        bind "3" { GoToTab 3; SwitchToMode "Locked"; }
+        bind "4" { GoToTab 4; SwitchToMode "Locked"; }
+        bind "5" { GoToTab 5; SwitchToMode "Locked"; }
+        bind "6" { GoToTab 6; SwitchToMode "Locked"; }
+        bind "7" { GoToTab 7; SwitchToMode "Locked"; }
+        bind "8" { GoToTab 8; SwitchToMode "Locked"; }
+        bind "9" { GoToTab 9; SwitchToMode "Locked"; }
+        // Resize stays in prefix mode so keys repeat (tmux `-r`); Esc exits.
+        // Vim H/J/K/L (popular) plus Ctrl-arrows.
+        bind "H" { Resize "Increase Left"; }
+        bind "J" { Resize "Increase Down"; }
+        bind "K" { Resize "Increase Up"; }
+        bind "L" { Resize "Increase Right"; }
+        bind "Ctrl Left" { Resize "Increase Left"; }
+        bind "Ctrl Right" { Resize "Increase Right"; }
+        bind "Ctrl Up" { Resize "Increase Up"; }
+        bind "Ctrl Down" { Resize "Increase Down"; }
+    }
+    // Copy/scroll mode (prefix-[): exit to Locked instead of Normal.
+    scroll {
+        bind "q" "Esc" { SwitchToMode "Locked"; }
+    }
+    // Rename window (prefix-,): confirm/cancel to Locked; Esc cancels the edit.
+    renametab {
+        bind "Enter" { SwitchToMode "Locked"; }
+        bind "Esc" { UndoRenameTab; SwitchToMode "Locked"; }
+    }
+}
