@@ -4,29 +4,8 @@
   <img src="./assets/skua.png" alt="skua" width="480">
 </p>
 
-A local first, no subscription way to develop code using your browser on localhost. Designed for Claude code users.
-Claude Pro subscription required, Max subscription suggested for initial setup. An API key can be used, but thats a much much more expensive way to run this.
+A local first, no subscription way to develop full stack applications using your browser on localhost. Designed for Claude code users, but can be easily ported to codex or other CLI agents.
 
-<video src="./skua-intro.mp4" width="75%" controls autoplay> 
-</video>
-
-<p align="center">
-  <img src="./assets/kanban.png" alt="skua board — tickets flowing through backlog, staging, stuck, building and testing buckets" width="100%">
-  <br>
-  <em><b><a href="#the-board">The board</a></b> — markdown tickets on disk, dragged through the lifecycle buckets (or driven by the <code>ticket-manager</code> skill).</em>
-</p>
-
-<p align="center">
-  <img src="./assets/graphs.png" alt="skua graphs — the skills graph showing orchestrators, leaves and their connections" width="100%">
-  <br>
-  <em><b><a href="#the-graphs-graphs">The graphs</a></b> — tickets, dataflow, your Claude Code skill/hook ecosystem, database schemas and ADRs, mapped from your repo.</em>
-</p>
-
-<p align="center">
-  <img src="./assets/terminals.png" alt="skua terminal tab — browser terminals running Claude, with live status dots and AI summaries in the sidebar" width="100%">
-  <br>
-  <em><b><a href="#the-terminal-terminal">The terminals</a></b> — real shells in the browser, each with a live status dot and a summary of what Claude is doing.</em>
-</p>
 
 This repo has the following features:
 - **Integrated Terminal**: Smart summarization, agent status tracking
@@ -35,13 +14,31 @@ This repo has the following features:
 - **Self improving skills**
 - **Repo analysis and ticket backlog fill**
 
-Drop this into any repo. Clone it, run one setup script against your project, and you
-get a localhost dashboard, a graph of your codebase, and a backlog that fills
-itself from a bug-scan of your own code.
+Drop this into any repo. Clone it, run one setup script against your project, and you get a localhost dashboard, a graph of your codebase, and a backlog that fills itself from a bug-scan of your own code 
 
-No database. No build pipeline. No external services. Markdown files on disk are
-the source of truth, served by a tiny [Bun](https://bun.sh) process on
-`127.0.0.1`.
+No database. No build pipeline. No external services. Markdown files on disk are the source of truth, served by a tiny [Bun](https://bun.sh) process on `127.0.0.1`.
+
+<p align="center">
+  <em><b><a href="#the-terminal-terminal">The terminals</a></b> — real shells in the browser, each with a live status dot and a summary of what Claude is doing.</em>
+  <br>
+  <img src="./assets/terminals.png" alt="skua terminal tab — browser terminals running Claude, with live status dots and AI summaries in the sidebar" width="100%">
+</p>
+
+
+<p align="center">
+  <em><b><a href="#the-board">The board</a></b> — markdown tickets on disk, dragged through the lifecycle buckets (or driven by the <code>ticket-manager</code> skill).</em>
+  <br>
+  <img src="./assets/kanban.png" alt="skua board — tickets flowing through backlog, staging, stuck, building and testing buckets" width="100%">
+</p>
+
+<p align="center">
+  <em><b><a href="#the-graphs-graphs">The graphs</a></b> — tickets, dataflow, your Claude Code skill/hook ecosystem, database schemas and ADRs, mapped from your repo.</em>
+  <br>
+  <img src="./assets/graphs.png" alt="skua graphs — the skills graph showing orchestrators, leaves and their connections" width="100%">
+</p>
+
+Claude Pro subscription (or similar) required, Max subscription suggested for initial setup. An API key can be used, but thats a much more expensive way to run this. Opus model suggested for accuracy in graph and ticket building.
+
 
 
 ---
