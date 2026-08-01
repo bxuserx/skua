@@ -263,7 +263,14 @@ function asStrArray(v: unknown): string[] {
   return Array.isArray(v) ? v.map((x) => String(x)) : [];
 }
 function str(v: unknown): string | null {
-  return typeof v === "string" && v.trim() !== "" ? v : null;
+  if (typeof v === "string") return v.trim() !== "" ? v : null;
+  // Numbers and booleans are converted, not dropped. Since frontmatter moved to
+  // a real YAML parser, `title: 2026` arrives as a number — and tickets.ts's
+  // summary() converts it. Dropping it here instead would put "2026" on the
+  // board and "(untitled)" in the mirror, which is exactly the board/mirror
+  // drift this module's shared buildDoc exists to prevent.
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  return null;
 }
 function num(v: unknown): number | null {
   if (typeof v === "number" && Number.isFinite(v)) return v;

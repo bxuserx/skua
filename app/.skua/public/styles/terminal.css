@@ -652,54 +652,13 @@ main.terminal-page.sidebar-collapsed .term-item-name {
     gap: 8px;
 }
 
-/* ── neovim tips button + modal content ──────────────────────────────────────── */
-.term-tips-btn {
-    flex: 0 0 auto;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 5px;
-    height: 30px;
-    padding: 0 10px;
-    font-family: var(--font-mono);
-    font-size: 0.78rem;
-    line-height: 1;
-    border: 1px dashed var(--border);
-    border-radius: 6px;
-    background: transparent;
-    color: var(--muted);
-    cursor: pointer;
-}
-.term-tips-btn:hover {
-    border-style: solid;
-    border-color: var(--accent);
-    color: var(--accent);
-}
-.term-tips-icon {
-    font-size: 0.9rem;
-    line-height: 1;
-}
-
-/* Terminal tips modal body: hero callouts + grouped command lists. */
-/* The terminal-tips modal is a wide two-purpose reference (editor +
-   multiplexer), so it overrides the default 520px modal width. */
-.term-tips-card {
-    width: min(940px, calc(100% - 32px));
-}
-/* Big, bold divider heading naming each half of the reference. */
-.term-tips-title {
-    margin: 6px 0 2px;
-    font-family: var(--font-display);
-    font-weight: 700;
-    font-size: 1.45rem;
-    line-height: 1.2;
-    color: var(--ink);
-    padding-bottom: 8px;
-    border-bottom: 2px solid var(--accent);
-}
-.term-tips-title:first-child {
-    margin-top: 0;
-}
+/* ── quick-reference content: hero callouts + grouped command lists ──────────
+   These style the Neovim / Terminal / Claude tabs of the shared help modal
+   (public/howto-modal.html, panels marked .howto-panel--tips). They stay here
+   rather than in howto.css because they are terminal-domain content and every
+   page loads both partials via styles.css. The buttons and per-modal card /
+   divider-heading rules that used to sit here died with the two standalone
+   tips modals on the /terminal route — the tabs replaced them. */
 .term-tips-hero {
     display: flex;
     gap: 12px;
@@ -761,7 +720,7 @@ main.terminal-page.sidebar-collapsed .term-item-name {
     border-bottom: 1px solid var(--rule);
 }
 .term-tips-list code,
-.term-tips-body kbd {
+.howto-panel--tips kbd {
     flex: 0 0 auto;
     font-family: var(--font-mono);
     font-size: 0.8em;

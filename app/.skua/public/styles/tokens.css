@@ -138,14 +138,19 @@
    Re-declares the same tokens, nothing else — all consumers continue
    to resolve through `var(--*)`. */
 :root[data-theme="dark"] {
-    /* Neutrals — deep warm slate */
-    --bg: #181613;
-    --paper: #211e1a;
-    --paper-2: #2a2620;
+    /* Neutrals — anchored on Aizen Dark's #1a1a1a, the default terminal
+       scheme's background (public/terminal-schemes.js), so the dashboard and
+       the embedded terminal sit on the same ground instead of the terminal
+       reading as a cooler rectangle punched into a warm page. The ramp is a
+       true neutral grey: --paper/--paper-2 lift by ~7 and ~16 points for cards
+       and nested surfaces. */
+    --bg: #1a1a1a;
+    --paper: #212121;
+    --paper-2: #2a2a2a;
     --ink: #ece7da;
-    --muted: #9a9285;
-    --border: #3a3530;
-    --rule: rgba(236, 231, 218, 0.1);
+    --muted: #93938f;
+    --border: #383838;
+    --rule: rgba(255, 255, 255, 0.09);
     --row-hover: rgba(96, 165, 250, 0.12);
     --term-tab-hover: rgba(255, 255, 255, 0.06);
     --term-tab-active: rgba(255, 255, 255, 0.1);
@@ -216,13 +221,14 @@
        theme.js writes `data-theme` only once the user toggles, so the
        absence of that attribute is what triggers this fallback. */
     :root:not([data-theme]) {
-        --bg: #181613;
-        --paper: #211e1a;
-        --paper-2: #2a2620;
+        /* Keep in lockstep with the [data-theme="dark"] block above. */
+        --bg: #1a1a1a;
+        --paper: #212121;
+        --paper-2: #2a2a2a;
         --ink: #ece7da;
-        --muted: #9a9285;
-        --border: #3a3530;
-        --rule: rgba(236, 231, 218, 0.1);
+        --muted: #93938f;
+        --border: #383838;
+        --rule: rgba(255, 255, 255, 0.09);
         --row-hover: rgba(96, 165, 250, 0.12);
         --term-tab-hover: rgba(255, 255, 255, 0.06);
         --term-tab-active: rgba(255, 255, 255, 0.1);

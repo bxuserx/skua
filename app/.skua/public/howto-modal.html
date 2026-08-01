@@ -1,6 +1,13 @@
 <!-- How-to modal. Shared partial injected by server.ts at the
      skua:howto-modal marker on every view. Hidden by default; toggled by
-     #howto-btn (in the shared navbar) and wired by howto.js. -->
+     #howto-btn (in the shared navbar) and wired by howto.js.
+
+     Four tabs consolidate every quick reference in the dashboard. The
+     Neovim / Terminal / Claude panels used to be two separate modals behind
+     their own buttons on the /terminal route; they live here so the help
+     button is the single place to look from any view. Their markup still uses
+     the `term-tips-*` classes, which stay in styles/terminal.css (loaded on
+     every page via styles.css). -->
 <div class="modal" id="howto-modal" hidden>
     <div class="modal-backdrop" data-modal-close></div>
     <div class="modal-card howto-card">
@@ -16,201 +23,499 @@
             </button>
         </header>
 
+        <div class="howto-tabs" role="tablist" aria-label="Help topics">
+            <button
+                type="button"
+                role="tab"
+                class="howto-tab"
+                id="howto-tab-board"
+                aria-controls="howto-panel-board"
+                aria-selected="true"
+            >
+                <span class="howto-tab-icon" aria-hidden="true">▤</span>Board
+            </button>
+            <button
+                type="button"
+                role="tab"
+                class="howto-tab"
+                id="howto-tab-neovim"
+                aria-controls="howto-panel-neovim"
+                aria-selected="false"
+                tabindex="-1"
+            >
+                <span class="howto-tab-icon" aria-hidden="true">💡</span>Neovim
+            </button>
+            <button
+                type="button"
+                role="tab"
+                class="howto-tab"
+                id="howto-tab-terminal"
+                aria-controls="howto-panel-terminal"
+                aria-selected="false"
+                tabindex="-1"
+            >
+                <span class="howto-tab-icon" aria-hidden="true">▣</span>Terminal
+            </button>
+            <button
+                type="button"
+                role="tab"
+                class="howto-tab"
+                id="howto-tab-claude"
+                aria-controls="howto-panel-claude"
+                aria-selected="false"
+                tabindex="-1"
+            >
+                <span class="howto-tab-icon" aria-hidden="true">✨</span>Claude
+            </button>
+        </div>
+
         <div class="modal-body howto-body">
-            <section class="howto-section">
-                <h4 class="howto-h">Lifecycle</h4>
-                <ul class="howto-lifecycle">
-                    <li>
-                        <span
-                            class="ht-swatch"
-                            style="background: var(--yellow)"
-                        ></span
-                        ><strong>Scratch pad</strong> — ideas filed via
-                        <strong>+ New</strong>. Thin stubs; no body yet.
-                    </li>
-                    <li>
-                        <span
-                            class="ht-swatch"
-                            style="background: var(--bucket-backlog)"
-                        ></span
-                        ><strong>Backlog</strong> — promoted stubs with
-                        full Objective / Context / Acceptance Criteria.
-                    </li>
-                    <li>
-                        <span
-                            class="ht-swatch"
-                            style="background: var(--bucket-staging)"
-                        ></span
-                        ><strong>Staging</strong> — refined by AI,
-                        awaiting your approval. No code written yet.
-                    </li>
-                    <li>
-                        <span
-                            class="ht-swatch"
-                            style="background: var(--bucket-stuck)"
-                        ></span
-                        ><strong>Stuck</strong> — agentic flow is
-                        blocked: needs additional information or an
-                        approval before work can continue.
-                    </li>
-                    <li>
-                        <span
-                            class="ht-swatch"
-                            style="background: var(--bucket-building)"
-                        ></span
-                        ><strong>Building</strong> — implementation in
-                        progress.
-                    </li>
-                    <li>
-                        <span
-                            class="ht-swatch"
-                            style="background: var(--bucket-validating)"
-                        ></span
-                        ><strong>Validating</strong> — build complete;
-                        awaiting review / QA.
-                    </li>
-                    <li>
-                        <span
-                            class="ht-swatch"
-                            style="background: var(--bucket-complete)"
-                        ></span
-                        ><strong>Complete</strong> — accepted.
-                        Auto-archived after 7 days.
-                    </li>
-                </ul>
-            </section>
+            <!-- ── Tab 1: the kanban board + ticket-manager skill ────────── -->
+            <div
+                class="howto-panel"
+                id="howto-panel-board"
+                role="tabpanel"
+                aria-labelledby="howto-tab-board"
+            >
+                <section class="howto-section">
+                    <h4 class="howto-h">Lifecycle</h4>
+                    <ul class="howto-lifecycle">
+                        <li>
+                            <span
+                                class="ht-swatch"
+                                style="background: var(--yellow)"
+                            ></span
+                            ><strong>Scratch pad</strong> — ideas filed via
+                            <strong>+ New</strong>. Thin stubs; no body yet.
+                        </li>
+                        <li>
+                            <span
+                                class="ht-swatch"
+                                style="background: var(--bucket-backlog)"
+                            ></span
+                            ><strong>Backlog</strong> — promoted stubs with
+                            full Objective / Context / Acceptance Criteria.
+                        </li>
+                        <li>
+                            <span
+                                class="ht-swatch"
+                                style="background: var(--bucket-staging)"
+                            ></span
+                            ><strong>Staging</strong> — refined by AI,
+                            awaiting your approval. No code written yet.
+                        </li>
+                        <li>
+                            <span
+                                class="ht-swatch"
+                                style="background: var(--bucket-stuck)"
+                            ></span
+                            ><strong>Stuck</strong> — agentic flow is
+                            blocked: needs additional information or an
+                            approval before work can continue.
+                        </li>
+                        <li>
+                            <span
+                                class="ht-swatch"
+                                style="background: var(--bucket-building)"
+                            ></span
+                            ><strong>Building</strong> — implementation in
+                            progress.
+                        </li>
+                        <li>
+                            <span
+                                class="ht-swatch"
+                                style="background: var(--bucket-validating)"
+                            ></span
+                            ><strong>Validating</strong> — build complete;
+                            awaiting review / QA.
+                        </li>
+                        <li>
+                            <span
+                                class="ht-swatch"
+                                style="background: var(--bucket-complete)"
+                            ></span
+                            ><strong>Complete</strong> — accepted.
+                            Auto-archived after 7 days.
+                        </li>
+                    </ul>
+                </section>
 
-            <section class="howto-section">
-                <h4 class="howto-h">What the skill does</h4>
-                <p class="howto-p">
-                    The <code>ticket-manager</code> skill owns the full
-                    <code>.tickets/</code> lifecycle — creating,
-                    refining, moving, and archiving tickets, and keeping
-                    <code>TaskBoard.md</code> in sync after every
-                    operation.
-                </p>
-                <p class="howto-p">
-                    The dashboard UI and the AI agent write to the same
-                    ticket files — there is no separate state. Core ops:
-                    <code>create-ticket</code>,
-                    <code>promote-from-scratch</code>,
-                    <code>refine-from-backlog</code>,
-                    <code>build-ticket</code>, <code>move-ticket</code>,
-                    <code>link-tickets</code>.
-                </p>
-            </section>
+                <section class="howto-section">
+                    <h4 class="howto-h">What the skill does</h4>
+                    <p class="howto-p">
+                        The <code>ticket-manager</code> skill owns the full
+                        <code>.tickets/</code> lifecycle — creating,
+                        refining, moving, and archiving tickets, and keeping
+                        <code>TaskBoard.md</code> in sync after every
+                        operation.
+                    </p>
+                    <p class="howto-p">
+                        The dashboard UI and the AI agent write to the same
+                        ticket files — there is no separate state. Core ops:
+                        <code>create-ticket</code>,
+                        <code>promote-from-scratch</code>,
+                        <code>refine-from-backlog</code>,
+                        <code>build-ticket</code>, <code>move-ticket</code>,
+                        <code>link-tickets</code>.
+                    </p>
+                </section>
 
-            <section class="howto-section">
-                <h4 class="howto-h">Example ticket flow</h4>
-                <ol class="howto-ol">
-                    <li>
-                        Click <strong>+ New</strong> → stub lands in
-                        <em>Scratch pad</em>.
-                    </li>
-                    <li>
-                        <code>promote TKT-NNN</code> → AI greps
-                        codebase, writes body, moves to
-                        <em>Backlog</em>.
-                    </li>
-                    <li>
-                        <code>pick up TKT-NNN</code> → AI refines for
-                        build-readiness, moves to <em>Staging</em>.
-                        <strong>No code yet.</strong>
-                    </li>
-                    <li>
-                        Review the staged ticket, then:
-                        <code>build TKT-NNN</code> → moves to
-                        <em>Building</em>, implementation begins.
-                    </li>
-                    <li>
-                        Implementation done → ticket auto-moves to
-                        <em>Validating</em>.
-                    </li>
-                    <li>
-                        Accept → <code>move TKT-NNN to complete</code>.
-                    </li>
-                    <li>
-                        7 days later → auto-archived to
-                        <em>7-archive</em>.
-                    </li>
-                </ol>
-            </section>
+                <section class="howto-section">
+                    <h4 class="howto-h">Example ticket flow</h4>
+                    <ol class="howto-ol">
+                        <li>
+                            Click <strong>+ New</strong> → stub lands in
+                            <em>Scratch pad</em>.
+                        </li>
+                        <li>
+                            <code>promote TKT-NNN</code> → AI greps
+                            codebase, writes body, moves to
+                            <em>Backlog</em>.
+                        </li>
+                        <li>
+                            <code>pick up TKT-NNN</code> → AI refines for
+                            build-readiness, moves to <em>Staging</em>.
+                            <strong>No code yet.</strong>
+                        </li>
+                        <li>
+                            Review the staged ticket, then:
+                            <code>build TKT-NNN</code> → moves to
+                            <em>Building</em>, implementation begins.
+                        </li>
+                        <li>
+                            Implementation done → ticket auto-moves to
+                            <em>Validating</em>.
+                        </li>
+                        <li>
+                            Accept → <code>move TKT-NNN to complete</code>.
+                        </li>
+                        <li>
+                            7 days later → auto-archived to
+                            <em>7-archive</em>.
+                        </li>
+                    </ol>
+                </section>
 
-            <section class="howto-section">
-                <h4 class="howto-h">Example prompts</h4>
-                <ul class="howto-prompts">
-                    <li>
-                        <code class="howto-prompt"
-                            >create a ticket to [describe feature]</code
-                        >
-                        <span class="howto-prompt-desc"
-                            >Files a new ticket in backlog with full
-                            context gathered from the codebase.</span
-                        >
-                    </li>
-                    <li>
-                        <code class="howto-prompt"
-                            >promote TKT-NNN</code
-                        >
-                        <span class="howto-prompt-desc"
-                            >Expands a scratch stub into a full backlog
-                            ticket.</span
-                        >
-                    </li>
-                    <li>
-                        <code class="howto-prompt"
-                            >pick up TKT-NNN</code
-                        >
-                        <span class="howto-prompt-desc"
-                            >Refines a backlog ticket and moves to
-                            staging. <strong>Does NOT build</strong> —
-                            you must approve first.</span
-                        >
-                    </li>
-                    <li>
-                        <code class="howto-prompt">build TKT-NNN</code>
-                        <span class="howto-prompt-desc"
-                            >Implements a staged ticket and moves it to
-                            validating when done.</span
-                        >
-                    </li>
-                    <li>
-                        <code class="howto-prompt"
-                            >what's on the board?</code
-                        >
-                        <span class="howto-prompt-desc"
-                            >Refreshes TaskBoard.md and shows the
-                            current state of all tickets.</span
-                        >
-                    </li>
-                    <li>
-                        <code class="howto-prompt"
-                            >move TKT-NNN to validating</code
-                        >
-                        <span class="howto-prompt-desc"
-                            >Manually advances (or reverses) a ticket to
-                            any lifecycle stage.</span
-                        >
-                    </li>
-                    <li>
-                        <code class="howto-prompt"
-                            >TKT-NNN depends on TKT-MMM</code
-                        >
-                        <span class="howto-prompt-desc"
-                            >Creates a dependency link visible in the
-                            graphs view.</span
-                        >
-                    </li>
-                </ul>
-                <div class="howto-callout">
-                    ⚠ <strong>Staging gate:</strong>
-                    <code>pick up TKT-NNN</code> refines and stages only
-                    — it does <strong>not</strong> write any code. Say
-                    <code>build TKT-NNN</code> (or <code>ship it</code>)
-                    to advance to building. This gives you a review
-                    window before implementation starts.
+                <section class="howto-section">
+                    <h4 class="howto-h">Example prompts</h4>
+                    <ul class="howto-prompts">
+                        <li>
+                            <code class="howto-prompt"
+                                >create a ticket to [describe feature]</code
+                            >
+                            <span class="howto-prompt-desc"
+                                >Files a new ticket in backlog with full
+                                context gathered from the codebase.</span
+                            >
+                        </li>
+                        <li>
+                            <code class="howto-prompt"
+                                >promote TKT-NNN</code
+                            >
+                            <span class="howto-prompt-desc"
+                                >Expands a scratch stub into a full backlog
+                                ticket.</span
+                            >
+                        </li>
+                        <li>
+                            <code class="howto-prompt"
+                                >pick up TKT-NNN</code
+                            >
+                            <span class="howto-prompt-desc"
+                                >Refines a backlog ticket and moves to
+                                staging. <strong>Does NOT build</strong> —
+                                you must approve first.</span
+                            >
+                        </li>
+                        <li>
+                            <code class="howto-prompt">build TKT-NNN</code>
+                            <span class="howto-prompt-desc"
+                                >Implements a staged ticket and moves it to
+                                validating when done.</span
+                            >
+                        </li>
+                        <li>
+                            <code class="howto-prompt"
+                                >what's on the board?</code
+                            >
+                            <span class="howto-prompt-desc"
+                                >Refreshes TaskBoard.md and shows the
+                                current state of all tickets.</span
+                            >
+                        </li>
+                        <li>
+                            <code class="howto-prompt"
+                                >move TKT-NNN to validating</code
+                            >
+                            <span class="howto-prompt-desc"
+                                >Manually advances (or reverses) a ticket to
+                                any lifecycle stage.</span
+                            >
+                        </li>
+                        <li>
+                            <code class="howto-prompt"
+                                >TKT-NNN depends on TKT-MMM</code
+                            >
+                            <span class="howto-prompt-desc"
+                                >Creates a dependency link visible in the
+                                graphs view.</span
+                            >
+                        </li>
+                    </ul>
+                    <div class="howto-callout">
+                        ⚠ <strong>Staging gate:</strong>
+                        <code>pick up TKT-NNN</code> refines and stages only
+                        — it does <strong>not</strong> write any code. Say
+                        <code>build TKT-NNN</code> (or <code>ship it</code>)
+                        to advance to building. This gives you a review
+                        window before implementation starts.
+                    </div>
+                </section>
+            </div>
+
+            <!-- ── Tab 2: Neovim (skua's default editor; click-to-open prefers
+                 nvim). Bindings mirror the managed init.lua — leader is
+                 Space (vim.g.mapleader = ' '). ── -->
+            <div
+                class="howto-panel howto-panel--tips"
+                id="howto-panel-neovim"
+                role="tabpanel"
+                aria-labelledby="howto-tab-neovim"
+                hidden
+            >
+                <div class="term-tips-hero">
+                    <code class="term-tips-key">Space e</code>
+                    <div class="term-tips-hero-text">
+                        Open the neo-tree file browser — and close it again from
+                        any <em>other</em> window. <strong>Space</strong> is the
+                        leader key — tap <kbd>Space</kbd>, then the next key
+                        (pause for a menu of every command).
+                    </div>
                 </div>
-            </section>
+
+                <section class="term-tips-section">
+                    <h4 class="term-tips-h">File browser (neo-tree)</h4>
+                    <ul class="term-tips-list">
+                        <li><code>Space e</code><span>open the tree — closes it only from outside</span></li>
+                        <li><code>q</code><span>close the tree, from inside it</span></li>
+                        <li><code>:Neotree close</code><span>close it from anywhere</span></li>
+                        <li><code>Ctrl-w w</code><span>tree ↔ file, leaving it open</span></li>
+                        <li><kbd>Enter</kbd><span>open the file under the cursor</span></li>
+                        <li><kbd>Space</kbd><span>in the tree: expand / open, <em>not</em> the leader</span></li>
+                        <li><code>\</code><span>reveal the current file in the tree</span></li>
+                        <li><code>a</code> / <code>d</code> / <code>r</code><span>add / delete / rename</span></li>
+                        <li><code>H</code><span>toggle hidden files</span></li>
+                        <li><kbd>?</kbd><span>every neo-tree key</span></li>
+                    </ul>
+                </section>
+
+                <div class="howto-callout">
+                    ⚠ <strong>Space is not the leader inside the tree.</strong>
+                    neo-tree binds <kbd>Space</kbd> to expand/collapse (and open,
+                    on a file), and that buffer-local mapping wins over
+                    <code>Space e</code> — so pressing it in the tree opens
+                    things instead of closing the window. Close with
+                    <code>q</code> or <code>:Neotree close</code>, or move focus
+                    out first (<code>Ctrl-w w</code> or a click) and then
+                    <code>Space e</code>.
+                </div>
+
+                <div class="term-tips-hero">
+                    <code class="term-tips-key">Space g d</code>
+                    <div class="term-tips-hero-text">
+                        See changes right in the file like GitHub — green added /
+                        changed lines, red removed lines shown inline.
+                    </div>
+                </div>
+
+                <section class="term-tips-section">
+                    <h4 class="term-tips-h">Files &amp; windows</h4>
+                    <ul class="term-tips-list">
+                        <li><code>:e file</code><span>open / edit a file</span></li>
+                        <li><code>:w</code><span>save (write)</span></li>
+                        <li><code>:wq</code> / <code>ZZ</code><span>save &amp; quit</span></li>
+                        <li><code>:q</code> / <code>:q!</code><span>quit / force quit</span></li>
+                        <li><code>:sp</code> / <code>:vs</code><span>split horizontal / vertical</span></li>
+                        <li><code>Ctrl-w w</code><span>jump between splits</span></li>
+                    </ul>
+                </section>
+
+                <section class="term-tips-section">
+                    <h4 class="term-tips-h">Editing</h4>
+                    <ul class="term-tips-list">
+                        <li><code>i</code> / <code>a</code><span>insert / append</span></li>
+                        <li><kbd>Esc</kbd><span>back to normal mode</span></li>
+                        <li><code>dd</code><span>delete line</span></li>
+                        <li><code>dw</code> / <code>dW</code><span>delete word / WORD</span></li>
+                        <li><code>dE</code><span>delete to end of WORD</span></li>
+                        <li><code>yy</code> / <code>p</code><span>yank line / paste</span></li>
+                        <li><code>u</code> / <code>Ctrl-r</code><span>undo / redo</span></li>
+                    </ul>
+                </section>
+
+                <div class="term-tips-cols">
+                    <section class="term-tips-section">
+                        <h4 class="term-tips-h">Move ↕ vertical</h4>
+                        <ul class="term-tips-list term-tips-list--single">
+                            <li><code>gg</code> / <code>G</code><span>top / bottom of file</span></li>
+                            <li><code>Ctrl-d</code> / <code>Ctrl-u</code><span>half-page down / up</span></li>
+                            <li><code>Ctrl-f</code> / <code>Ctrl-b</code><span>full page down / up</span></li>
+                            <li><code>{</code> / <code>}</code><span>prev / next paragraph</span></li>
+                        </ul>
+                    </section>
+
+                    <section class="term-tips-section">
+                        <h4 class="term-tips-h">Move ↔ horizontal</h4>
+                        <ul class="term-tips-list term-tips-list--single">
+                            <li><code>0</code> / <code>$</code><span>start / end of line</span></li>
+                            <li><code>^</code><span>first non-blank char</span></li>
+                            <li><code>w</code> / <code>b</code><span>next / prev word</span></li>
+                            <li><code>e</code><span>end of word</span></li>
+                            <li><code>%</code><span>jump to matching ( ) [ ] { }</span></li>
+                        </ul>
+                    </section>
+                </div>
+
+                <div class="term-tips-cols">
+                    <section class="term-tips-section">
+                        <h4 class="term-tips-h">Search &amp; find</h4>
+                        <ul class="term-tips-list term-tips-list--single">
+                            <li><code>/text</code> then <kbd>n</kbd><span>search, next match</span></li>
+                            <li><code>:%s/old/new/g</code><span>replace all</span></li>
+                            <li><code>Space s f</code><span>find files (fuzzy)</span></li>
+                            <li><code>Space s g</code><span>live-grep project text</span></li>
+                            <li><code>Space Space</code><span>switch open files</span></li>
+                        </ul>
+                    </section>
+
+                    <section class="term-tips-section">
+                        <h4 class="term-tips-h">Git in the buffer</h4>
+                        <ul class="term-tips-list term-tips-list--single">
+                            <li><code>Space g d</code><span>toggle inline diff (red / green)</span></li>
+                            <li><code>Space g p</code><span>preview this hunk inline</span></li>
+                            <li><code>]h</code> / <code>[h</code><span>next / prev change</span></li>
+                            <li><code>Space g b</code><span>blame this line</span></li>
+                            <li><code>Space g D</code><span>split diff vs last commit</span></li>
+                        </ul>
+                    </section>
+                </div>
+            </div>
+
+            <!-- ── Tab 3: multiplexer (zellij) — splits, tabs, scrollback for
+                 every terminal tab. Prefix + bindings mirror
+                 .skua/lib/zellij/config.kdl. ── -->
+            <div
+                class="howto-panel howto-panel--tips"
+                id="howto-panel-terminal"
+                role="tabpanel"
+                aria-labelledby="howto-tab-terminal"
+                hidden
+            >
+                <div class="term-tips-hero">
+                    <code class="term-tips-key">Ctrl-a</code>
+                    <div class="term-tips-hero-text">
+                        The <strong>prefix</strong> for the terminal
+                        multiplexer (zellij) that drives splits, tabs and
+                        scrollback. Press <code>Ctrl-a</code>, release, then
+                        one command below — you land right back in the shell.
+                        <code>Ctrl-a</code> twice sends a literal Ctrl-a;
+                        <kbd>Esc</kbd> cancels the prefix; <code>Ctrl-g</code>
+                        drops to zellij's native mode.
+                    </div>
+                </div>
+
+                <div class="term-tips-cols">
+                    <section class="term-tips-section">
+                        <h4 class="term-tips-h">Panes — after Ctrl-a</h4>
+                        <ul class="term-tips-list term-tips-list--single">
+                            <li><code>|</code> / <code>-</code><span>split right / down (also <code>%</code> <code>"</code>)</span></li>
+                            <li><code>h</code> <code>j</code> <code>k</code> <code>l</code><span>focus pane ← ↓ ↑ → (or arrows)</span></li>
+                            <li><code>o</code><span>cycle to next pane</span></li>
+                            <li><code>{</code> / <code>}</code><span>move pane left / right</span></li>
+                            <li><code>z</code><span>zoom pane to fullscreen</span></li>
+                            <li><code>x</code><span>close pane</span></li>
+                            <li><code>!</code><span>break pane into its own tab</span></li>
+                        </ul>
+                    </section>
+
+                    <section class="term-tips-section">
+                        <h4 class="term-tips-h">Tabs, resize &amp; session — after Ctrl-a</h4>
+                        <ul class="term-tips-list term-tips-list--single">
+                            <li><code>c</code><span>new tab (window)</span></li>
+                            <li><code>n</code> / <code>p</code><span>next / previous tab</span></li>
+                            <li><code>1</code>–<code>9</code><span>jump to tab N</span></li>
+                            <li><code>,</code><span>rename tab (Enter confirms)</span></li>
+                            <li><code>&amp;</code><span>close tab</span></li>
+                            <li><code>H</code> <code>J</code> <code>K</code> <code>L</code><span>resize pane (repeats; Esc exits)</span></li>
+                            <li><code>Space</code><span>cycle pane layout</span></li>
+                            <li><code>[</code><span>scroll / copy mode (<code>q</code> exits)</span></li>
+                            <li><code>d</code><span>detach session</span></li>
+                        </ul>
+                    </section>
+                </div>
+            </div>
+
+            <!-- ── Tab 4: Claude Code slash commands ─────────────────────── -->
+            <div
+                class="howto-panel howto-panel--tips"
+                id="howto-panel-claude"
+                role="tabpanel"
+                aria-labelledby="howto-tab-claude"
+                hidden
+            >
+                <div class="term-tips-hero">
+                    <code class="term-tips-key">/</code>
+                    <div class="term-tips-hero-text">
+                        Type <code>/</code> at the start of the prompt to see
+                        every command with autocomplete. These are the ones
+                        you'll reach for most.
+                    </div>
+                </div>
+
+                <div class="term-tips-cols">
+                    <section class="term-tips-section">
+                        <h4 class="term-tips-h">Context &amp; session</h4>
+                        <ul class="term-tips-list term-tips-list--single">
+                            <li><code>/clear</code><span>wipe history, reset context</span></li>
+                            <li><code>/compact</code><span>summarize &amp; keep going</span></li>
+                            <li><code>/rename</code><span>rename this session</span></li>
+                            <li><code>/resume</code><span>reopen a past session</span></li>
+                            <li><code>/cost</code><span>tokens &amp; cost used</span></li>
+                        </ul>
+                    </section>
+
+                    <section class="term-tips-section">
+                        <h4 class="term-tips-h">Model &amp; output</h4>
+                        <ul class="term-tips-list term-tips-list--single">
+                            <li><code>/model</code><span>switch Claude model</span></li>
+                            <li><code>/effort</code><span>set reasoning effort</span></li>
+                            <li><code>/fast</code><span>toggle fast mode</span></li>
+                        </ul>
+                    </section>
+                </div>
+
+                <div class="term-tips-cols">
+                    <section class="term-tips-section">
+                        <h4 class="term-tips-h">Extend &amp; configure</h4>
+                        <ul class="term-tips-list term-tips-list--single">
+                            <li><code>/plugin</code><span>install / manage plugins</span></li>
+                            <li><code>/mcp</code><span>manage MCP servers</span></li>
+                            <li><code>/agents</code><span>manage subagents</span></li>
+                            <li><code>/config</code><span>open settings</span></li>
+                        </ul>
+                    </section>
+
+                    <section class="term-tips-section">
+                        <h4 class="term-tips-h">Project &amp; help</h4>
+                        <ul class="term-tips-list term-tips-list--single">
+                            <li><code>/init</code><span>write a CLAUDE.md</span></li>
+                            <li><code>/review</code><span>review a PR / diff</span></li>
+                            <li><code>/memory</code><span>edit memory files</span></li>
+                            <li><code>/help</code><span>list every command</span></li>
+                        </ul>
+                    </section>
+                </div>
+            </div>
         </div>
 
         <footer class="modal-foot">

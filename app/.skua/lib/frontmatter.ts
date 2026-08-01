@@ -1,11 +1,24 @@
-// Minimal YAML frontmatter parser/serializer for ticket files.
-// Supports the subset the ticket-manager skill writes:
-//   scalar:  key: "string"  | key: bare-string | key: 2026-05-18
-//   list:    key:
-//              - item
-//              - item
-//   inline:  key: []
-// Anything more exotic is preserved verbatim in a `_raw` slot.
+// YAML frontmatter for ticket and ADR files.
+//
+// Backed by the vendored `yaml` (lib/vendor/yaml) via its Document API. The
+// previous hand-rolled subset parser was not an inverse of its serializer, and
+// a no-op save through the editor silently destroyed data: comment lines and
+// hyphenated keys were dropped outright, nested maps collapsed to `[]`, block
+// scalars became the literal string "|", backslashes were eaten (so a Windows
+// path degraded on every save), and a newline in any value could forge
+// arbitrary frontmatter fields or break out of the block entirely.
+//
+// Why the Document API and not `parse`/`stringify`: only Document round-trips
+// comments and constructs we don't model. `parse(raw)` keeps the parsed
+// Document on the result, and `serialize(fm, body, prev)` applies the diff of
+// `fm` onto it — so keys nobody edited keep their original comments, quoting and
+// ordering, and the file a user hand-wrote still looks hand-written afterwards.
+//
+// Vendored rather than imported from node_modules: setup.sh copies the dashboard
+// with `rsync --exclude node_modules` and never runs an install, so an installed
+// skua has no node_modules at all and a bare `import "yaml"` would break it.
+
+import { parseDocument, type Document } from "./vendor/yaml/index.js";
 
 export type Frontmatter = {
   id?: string;
@@ -34,82 +47,81 @@ export type Frontmatter = {
 export type ParsedFile = {
   frontmatter: Frontmatter;
   body: string;
+  /** Set when the frontmatter block is absent or unparseable. Consumers must
+   *  treat the file as read-only: writing over it would destroy whatever the
+   *  parser could not read. */
   malformed?: string;
+  /** The retained YAML Document, so serialize() can write back onto the original
+   *  structure instead of regenerating it. Opaque — do not depend on its shape. */
+  _doc?: unknown;
 };
 
-const DELIM = /^---\s*$/m;
+/** 1.2/core pins the schema explicitly. It is already yaml@2's default, but the
+ *  difference matters enough to state: under YAML 1.1 a title of `yes`/`no`/`on`
+ *  parses as a boolean and an unquoted `created: 2026-05-18` becomes a Date. */
+const YAML_OPTS = { version: "1.2", schema: "core" } as const;
 
-export function parse(raw: string): ParsedFile {
-  if (!raw.startsWith("---")) {
-    return { frontmatter: {}, body: raw, malformed: "missing frontmatter delimiter" };
-  }
+/** lineWidth 0 disables folding: the default (80) reflows any plain scalar over
+ *  ~70 chars, so every ticket with a long title would show a spurious diff on
+ *  first save. flowCollectionPadding false emits `[TKT-102]` rather than
+ *  `[ TKT-102 ]`, matching what skua and its skills have always written — without
+ *  it every existing file churns one line the first time it is saved. */
+const STRINGIFY_OPTS = { lineWidth: 0, flowCollectionPadding: false } as const;
+
+const DELIM = /^---\s*$/;
+
+/** Split a file into its frontmatter source and body. Returns null when there is
+ *  no frontmatter block to speak of. */
+function split(raw: string): { fmText: string; body: string } | null {
+  if (!raw.startsWith("---")) return null;
   const lines = raw.split(/\r?\n/);
-  // first line is ---, find next ---
   let end = -1;
   for (let i = 1; i < lines.length; i++) {
     if (DELIM.test(lines[i])) { end = i; break; }
   }
-  if (end < 0) return { frontmatter: {}, body: raw, malformed: "unterminated frontmatter" };
-
-  const fmLines = lines.slice(1, end);
-  const body = lines.slice(end + 1).join("\n");
-
-  const fm: Frontmatter = {};
-  let i = 0;
-  while (i < fmLines.length) {
-    const line = fmLines[i];
-    if (!line.trim() || line.trim().startsWith("#")) { i++; continue; }
-    const m = line.match(/^([A-Za-z_][A-Za-z0-9_]*):\s*(.*)$/);
-    if (!m) { i++; continue; }
-    const key = m[1];
-    const valRaw = m[2];
-
-    if (valRaw === "" || valRaw === undefined) {
-      // block list
-      const items: string[] = [];
-      i++;
-      while (i < fmLines.length && /^\s+-\s+/.test(fmLines[i])) {
-        items.push(stripScalar(fmLines[i].replace(/^\s+-\s+/, "")));
-        i++;
-      }
-      fm[key] = items;
-      continue;
-    }
-
-    if (valRaw.startsWith("[") && valRaw.endsWith("]")) {
-      const inner = valRaw.slice(1, -1).trim();
-      fm[key] = inner === "" ? [] : inner.split(",").map((s) => stripScalar(s.trim()));
-      i++;
-      continue;
-    }
-
-    fm[key] = stripScalar(valRaw);
-    i++;
-  }
-  return { frontmatter: fm, body };
+  if (end < 0) return null;
+  return {
+    fmText: lines.slice(1, end).join("\n"),
+    // Only leading NEWLINES are trimmed, never leading spaces: a body opening
+    // with an indented code block must keep its indentation.
+    body: lines.slice(end + 1).join("\n").replace(/^\n+/, ""),
+  };
 }
 
-function stripScalar(s: string): string {
-  s = s.trim();
-  // Quoted scalar: read to the matching closing quote so a '#' inside the
-  // value stays literal (it is NOT a comment), and any trailing " # comment"
-  // after the close is dropped. Double-quoted values honor backslash escapes.
-  const q = s[0];
-  if (q === '"' || q === "'") {
-    let out = "";
-    for (let i = 1; i < s.length; i++) {
-      const c = s[i];
-      if (q === '"' && c === "\\" && i + 1 < s.length) { out += s[i + 1]; i++; continue; }
-      if (c === q) return out;
-      out += c;
-    }
-    // Unterminated quote — fall through to bare handling.
+export function parse(raw: string): ParsedFile {
+  const parts = split(raw);
+  if (!parts) {
+    return {
+      frontmatter: {},
+      body: raw,
+      malformed: raw.startsWith("---")
+        ? "unterminated frontmatter"
+        : "missing frontmatter delimiter",
+    };
   }
-  // Unquoted scalar: a whitespace-prefixed '#' starts a trailing comment.
-  return s.replace(/\s+#.*$/, "").trim();
+
+  const doc = parseDocument(parts.fmText, YAML_OPTS);
+  if (doc.errors.length) {
+    // Surface the real YAML error rather than silently dropping the line, which
+    // is what let a broken ticket render as blank and then be saved over.
+    return {
+      frontmatter: {},
+      body: raw,
+      malformed: `invalid YAML frontmatter: ${doc.errors[0].message}`,
+    };
+  }
+
+  const value = doc.toJS();
+  const frontmatter: Frontmatter =
+    value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Frontmatter)
+      : {};
+
+  return { frontmatter, body: parts.body, _doc: doc };
 }
 
-// Serialize back. Keys appear in this order; unknown keys appended after.
+// Key order for files we author from scratch. An existing file keeps whatever
+// order it already had — reordering someone's frontmatter on save is churn.
 const KEY_ORDER = [
   "id", "title", "status", "priority", "assignee",
   "created", "completed",
@@ -119,51 +131,55 @@ const KEY_ORDER = [
   "files_touched",
 ];
 
-const QUOTED_KEYS = new Set(["title", "status", "priority", "assignee", "domain"]);
-const LIST_KEYS = new Set([
-  "secondary_domains", "tags", "depends_on", "blocks", "related",
-  "files_touched",
-]);
+function sameValue(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (a === undefined || b === undefined) return false;
+  return JSON.stringify(a) === JSON.stringify(b);
+}
 
-export function serialize(fm: Frontmatter, body: string): string {
-  const out: string[] = ["---"];
-  const seen = new Set<string>();
+/** Apply `fm` onto an existing Document, touching only what actually changed. */
+function applyOnto(doc: Document, fm: Frontmatter): void {
+  const current = (doc.toJS() ?? {}) as Record<string, unknown>;
 
-  const emit = (k: string) => {
-    const v = fm[k];
-    if (v === undefined || v === null) return;
-    seen.add(k);
-    if (LIST_KEYS.has(k) || Array.isArray(v)) {
-      const arr = (v as unknown[]).map(String);
-      if (arr.length === 0) {
-        out.push(`${k}: []`);
-      } else if (k === "tags" || k === "secondary_domains") {
-        // tags/secondary_domains historically use block-list style
-        out.push(`${k}:`);
-        for (const item of arr) out.push(`  - ${item}`);
-      } else if (k === "files_touched") {
-        // File paths contain "/" and sometimes spaces — quote each so YAML
-        // stays well-formed.
-        out.push(`${k}:`);
-        for (const item of arr) out.push(`  - "${item.replace(/"/g, '\\"')}"`);
-      } else {
-        // depends_on/blocks/related: inline flow style for compactness
-        out.push(`${k}: [${arr.join(", ")}]`);
-      }
-      return;
-    }
-    if (QUOTED_KEYS.has(k)) {
-      out.push(`${k}: "${String(v).replace(/"/g, '\\"')}"`);
-    } else {
-      out.push(`${k}: ${v}`);
-    }
-  };
+  for (const key of Object.keys(current)) {
+    if (!(key in fm) || fm[key] === undefined) doc.delete(key);
+  }
+  for (const [key, value] of Object.entries(fm)) {
+    if (value === undefined) continue;
+    // Only write when the value differs: doc.set() replaces the node, which
+    // would discard that key's comment and quoting style.
+    if (!sameValue(current[key], value)) doc.set(key, value);
+  }
+}
 
-  for (const k of KEY_ORDER) emit(k);
-  for (const k of Object.keys(fm)) if (!seen.has(k)) emit(k);
+/** Serialize frontmatter + body back to file text.
+ *
+ *  Pass the `ParsedFile` the values came from as `prev` to preserve the original
+ *  document's comments, quoting and key order. Without it the frontmatter is
+ *  regenerated from scratch, which is correct but loses formatting — so callers
+ *  editing an existing file should always thread it through. */
+export function serialize(fm: Frontmatter, body: string, prev?: ParsedFile): string {
+  let doc: Document;
+  const retained = prev?._doc as Document | undefined;
 
-  out.push("---");
-  // ensure exactly one blank line between frontmatter and body
-  const bodyTrimmed = body.replace(/^\s+/, "");
-  return out.join("\n") + "\n\n" + bodyTrimmed;
+  if (retained && retained.contents) {
+    doc = retained;
+    applyOnto(doc, fm);
+  } else {
+    doc = parseDocument("{}", YAML_OPTS) as Document;
+    doc.contents = null;
+    const ordered = [
+      ...KEY_ORDER.filter((k) => fm[k] !== undefined),
+      ...Object.keys(fm).filter((k) => !KEY_ORDER.includes(k) && fm[k] !== undefined),
+    ];
+    // Seed an empty map, then set in order.
+    doc = parseDocument(ordered.length ? "" : "{}", YAML_OPTS) as Document;
+    for (const key of ordered) doc.set(key, fm[key]);
+  }
+
+  let yaml = doc.toString(STRINGIFY_OPTS);
+  if (yaml === "null\n" || yaml === "{}\n") yaml = "";
+  if (yaml && !yaml.endsWith("\n")) yaml += "\n";
+
+  return `---\n${yaml}---\n\n${body.replace(/^\n+/, "")}`;
 }

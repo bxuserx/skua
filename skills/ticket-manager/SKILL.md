@@ -71,6 +71,8 @@ This skill supports four operations. Pick the one(s) implied by the user request
 | `build-ticket` | "build TKT-NNN", "implement TKT-NNN", "ship TKT-NNN", "do TKT-NNN" — implements the ticket, then automatically moves it to `4-testing` with `record-files-touched` + `record-implementation-summary` + wrap-up. Blocks if pass-2 review is missing. |
 | `test-ticket` | Auto-runs after `build-ticket` lands a ticket in `4-testing`. Spawns a fresh `Agent` subagent to verify AC bullet-by-bullet against the diff. Evidence-required verdict: each bullet must cite a command-output excerpt or file:line. Pass → `5-validating`. Fail → `2-stuck`. |
 | `validate-ticket` | Auto-runs after `test-ticket` passes and the ticket lands in `5-validating`. Spawns a **second, distinct** fresh subagent that judges the whole ticket on four axes (objective fidelity / context-constraint respect / sprawl / follow-ups). Pass → stays in validating + triggers agentic-mode git policy if applicable. Fail → `2-stuck`. |
+| `adversarial-pass` | Auto-runs in agentic mode **concurrently with** `test-ticket`. A fresh subagent whose job is to BREAK the change, not confirm it: construct an input the fix mishandles, an evasion the new guard misses, a revert that still passes. Findings feed `rectify-findings`. Confirmatory verification (`test-ticket`) and refutation are different prompt classes — running only the former is how a guard that asserts nothing ships green. |
+| `rectify-findings` | Auto-runs after `adversarial-pass` / `test-ticket` return findings. The PARENT fixes each confirmed finding in place, then re-runs only the narrow check that failed. Two rectify rounds max, then `2-stuck`. This is what replaces "route to stuck on first fail" in agentic mode — stuck is for questions only the user can answer, not for defects the agent can fix. |
 | `spawn-ticket-mid-flow` | First-class judgment during build / test / validate when the agent discovers in-scope work that belongs in a separate ticket. Decides ordering: defer-to-backlog / splice-front / splice-back. Always called via the existing `create-ticket` machinery with a `### Why this was spawned mid-stack` body block. |
 | `plan-stack` | "plan a stack", "group the backlog", "what should I work on next" (agentic mode) — reads `0-backlog/`, scores ticket affinity, partitions into sub-stacks of ≤5 tickets sized to a single context window. Writes `.skua/cache/stacks/<id>.json`. No file moves. |
 | `run-stack` | "run stack <id>", "go" (after `plan-stack`) — walks `members[]` end-to-end: refine → pass-2 → build → test → validate → commit prompt. Only stops at `.tickets/STOP`, a `2-stuck/` route, a destructive-op confirm, or the per-ticket commit/push prompt at validating. Foreground only in v1. |
@@ -117,7 +119,7 @@ Triggered before any of:
    Treat any of these as **user-driven, no question asked**:
    - "user-driven", "manual", "step by step", "one step at a time", "I'll drive"
 
-   **Chaos is a third execution mode, but it is NOT enterable here.** If the request implies fully-autonomous, *no-human-review* execution ("chaos", "drain the backlog unattended", "no oversight / no review", "arm chaos", "run it autonomously with nobody watching"), do NOT pick a mode — **redirect**: tell the user chaos runs through its own explicit arming ceremony and point them at the `chaos` skill (`/chaos`). Never start chaos from this gate. (Plain "autonomous"/"auto" still means **agentic** — chaos is specifically the *no-review* mode: zero human gates, a `chaos/TKT-NNN` worktree per ticket, lands in `5-validating/`, never merges to main.)
+   **Chaos is a third execution mode, but it is NOT enterable here.** If the request implies fully-autonomous, *no-human-review* execution ("chaos", "drain the backlog unattended", "no oversight / no review", "arm chaos", "run it autonomously with nobody watching"), do NOT pick a mode — **redirect**: tell the user chaos runs through its own explicit arming ceremony and point them at the `chaos` skill (`/chaos`). Never start chaos from this gate. (Plain "autonomous"/"auto" still means **agentic** — chaos is specifically the *no-review* mode: zero human gates, a `chaos/TKT-NNN` worktree per ticket, and by default it **merges to `main` and pushes to origin as it runs**. Do not tell the user chaos cannot touch `main`; that is only true if they set `land_during_run: false`.)
 
    If a mode is detected inline, skip steps 2–3 and jump to step 4 with that pick. Do not echo a confirmation — just proceed and let the first real op's preamble announce what's happening.
 2. Only if no inline mode is detected, output exactly:
@@ -134,6 +136,78 @@ Triggered before any of:
 - **Default-deny on ambiguity.** If the user replies with anything other than a clear pick (e.g. "yeah" / "either" / "whatever"), re-ask once. Still ambiguous → user-driven. *(Applies only when the gate prompt was actually shown — inline-mode detection in step 1 short-circuits this.)*
 - **Never auto-promote a user-driven session to agentic** mid-flow. The user must restart with a fresh gate.
 - The gate prompt is skippable **only** via the inline-mode signals in step 1 — never via inference, never via "the user probably meant…", never via prior-session memory.
+
+---
+
+## Agentic speed contract (cross-cuts every op below)
+
+Agentic mode drifts toward **30+ minutes for small tickets**. The cause is never one slow
+step — it is five sequential cold-read phases per ticket, each re-deriving what the last
+already knew, run strictly one ticket at a time. Depth is not free and is not always
+warranted. These rules are binding on `run-stack`, `build-ticket`, `test-ticket`,
+`adversarial-pass`, and `validate-ticket`.
+
+### 1. Depth ladder — grade the ceremony to `complexity`
+
+| complexity | refine | build | verify | validate |
+|---|---|---|---|---|
+| **1** trivial | skip pass-2 | inline | parent self-checks + cites evidence; **no subagent** | skip |
+| **2** small | pass-2 inline (no subagent) | inline | ONE subagent doing test **and** adversarial in a single prompt | fold into the same subagent as a 5th section |
+| **3** medium | pass-2 inline | inline | test + adversarial as **two concurrent** subagents | separate subagent |
+| **4-5** large | full pass-2 | inline | two concurrent subagents | separate subagent |
+
+Complexity 5 → `plan-stack`, don't build as one ticket. A ticket whose diff lands under
+~40 lines across ≤3 files is complexity ≤2 regardless of what the frontmatter claims —
+re-rate it down and say so, rather than paying for ceremony the change can't justify.
+
+### 2. Run independent members CONCURRENTLY
+
+`run-stack` processes members "in order". Order only matters for members that actually
+interact. Before the loop, partition `members[]`:
+
+- Two members are **independent** if their predicted `files_touched` are disjoint AND
+  neither appears in the other's `depends_on`.
+- Independent members run **in the same message, in parallel** — one `Agent` call each.
+- Dependent members stay serial within their chain.
+
+A 6-ticket stack touching 6 unrelated files is one parallel wave, not six serial passes.
+State the partition in the plan summary so the user can see what runs together.
+
+**Disjoint `files_touched` is NOT sufficient — shared fixtures couple agents invisibly.**
+Some files nobody lists as touched are depended on by everyone: `conftest.py`, global test
+setup, lint/tsconfig, shared factories. A parallel member that edits one changes what
+*other* members' tests can import — a failure that then looks like the other agent's bug.
+So:
+
+- A parallel member MUST scope test stubs/fixtures to its **own test module**, never to a
+  shared `conftest.py` or global config.
+- If a member genuinely needs a shared-fixture change, it leaves the wave and runs serial.
+- Expect transient cross-member red. Before blaming a member's own diff for a failing test,
+  check `git status` for files it did not author — in a parallel wave the tree is shared
+  and another member's uncommitted work is the likelier cause.
+
+### 3. Hand subagents the context — "cold" means unbiased, not uninformed
+
+Every subagent prompt MUST inline: the ticket markdown, the **actual diff hunks** (not just
+`--name-only`), and the exact verification commands to run. Cold-read means *don't trust
+the parent's conclusion* — it does NOT mean "re-discover the repo from scratch." A
+subagent told to go find the change spends most of its budget on search. Forbidden in a
+subagent prompt: "explore the codebase", "find the relevant files", "familiarize yourself".
+
+### 4. Budgets, and say when you hit one
+
+- Refine ≤8 tool calls · build ≤25 · each verify subagent ≤20 · validate ≤12.
+- Exceeding a budget is not a failure — it's a signal the ticket is under-rated. Finish,
+  then say "TKT-NNN ran N calls over the build budget; complexity should be X not Y."
+- Never poll on a fixed sleep when a single terminal check would do. Never re-read a file
+  to confirm an `Edit` landed — `Edit` errors if it didn't.
+- One lint/type-check run per ticket at the END, not after each edit.
+
+### 5. Don't re-verify settled facts
+
+Within one stack run, a fact established by a real command (test count, file contents, a
+schema shape) is settled. Do not re-derive it in a later phase; quote the earlier result
+and cite which step produced it. If a later phase genuinely needs to re-check, say why.
 
 ---
 
@@ -757,6 +831,113 @@ Full ticket-level review by a **second, distinct fresh `Agent` subagent**. Disti
 
 ---
 
+## Operation: adversarial-pass
+
+A fresh subagent whose success condition is **breaking the change**, not confirming it.
+Runs CONCURRENTLY with `test-ticket` (same message, two `Agent` calls) for complexity ≥3;
+folded into the single verify subagent for complexity ≤2 per the depth ladder.
+
+### Why this is separate from test-ticket
+
+`test-ticket` asks "does each AC hold?" — a confirmatory prompt class, and confirmatory
+prompts find confirmatory answers. Two failure modes it structurally cannot catch:
+
+- **The vacuous assertion.** A fix ships, the suite is green, and the one-line revert of
+  that fix ALSO passes every test — because the new test asserted that a symbol exists,
+  not that anything uses it.
+- **The spelling-matched guard.** A guard written to catch a bug matches one *syntactic
+  form* the bug happened to take. A regression with the same defect in a different shape
+  sails through every test the guard added.
+
+A green AC table is consistent with "the fix works" and with "the assertion is vacuous."
+Only an agent paid to find the second distinguishes them.
+
+### Procedure
+
+1. Spawn a fresh `Agent` (`general-purpose`, same deny-list as `test-ticket`).
+2. Prompt inlines the ticket, the **diff hunks**, and this charge — *"Your job is to find
+   what is wrong with this change. Returning 'no findings' is a valid and sometimes correct
+   answer, but only after you have genuinely tried the four attacks below."*
+3. The four attacks (each must be attempted and reported, even if it fails to break):
+   - **Revert test** — undo the fix; does any test go red? If none do, the tests assert nothing.
+   - **Evasion** — construct an input/shape the new guard misses but that has the same defect
+     (assert the property, not one syntactic form of it).
+   - **Blast radius** — what else reads this code path and now behaves differently?
+   - **Premise check** — is the ticket's stated cause actually the cause, or did the fix
+     treat a symptom?
+4. Output schema:
+   ```json
+   {
+     "findings": [
+       {"severity": "blocker|major|minor", "claim": "...",
+        "evidence": "<command output or file:line — MANDATORY>",
+        "repro": "<exact steps or command>", "suggested_fix": "..."}
+     ],
+     "attacks_attempted": {"revert": "...", "evasion": "...", "blast_radius": "...", "premise": "..."},
+     "notes": "..."
+   }
+   ```
+5. Findings go to `rectify-findings`. Zero findings with all four attacks genuinely
+   attempted is a pass — record `attacks_attempted` in the ticket so the reader can see
+   what was tried.
+
+### Honesty rules
+
+- An adversarial agent that returns "no findings" without a populated `attacks_attempted`
+  is rejected and respawned once. Empty effort is not a clean bill of health.
+- The parent must NOT soften or pre-filter findings before rectification. Record the
+  finding as written, then dispute it in the rectification note if it's wrong.
+- A finding the parent disagrees with is still recorded, with the disagreement and its
+  evidence. Do not silently drop it.
+- When a test contradicts a file you just read, suspect a stale build/bytecode cache before
+  suspecting the code.
+
+---
+
+## Operation: rectify-findings
+
+Closes the loop that previously dead-ended at `2-stuck/`. In agentic mode a defect the
+agent can fix is not a reason to stop — stuck is for questions only the user can answer.
+
+### When to run
+
+Automatically, whenever `test-ticket` returns `pass: false` or `adversarial-pass` returns
+any `blocker`/`major` finding. Skipped for `minor` findings, which become follow-up tickets
+via `spawn-ticket-mid-flow` instead.
+
+### Procedure
+
+1. **Triage each finding** — `accept` (real, fix it) or `dispute` (wrong, say why with
+   evidence). Disputing is legitimate; disputing without evidence is not.
+2. **The parent fixes accepted findings in place.** Do not spawn a subagent to fix — the
+   parent holds the build context, and a fresh agent would re-derive it.
+3. **Re-run only the narrow check that failed.** Not the whole suite, not a fresh full
+   verification pass. If the finding was "revert test passes", the re-check is: revert,
+   confirm RED, restore, confirm GREEN — and that transcript is the evidence.
+4. **Append `### Rectification` to the ticket body:**
+   ```markdown
+   ### Rectification (round N)
+
+   | Finding | Verdict | Action | Re-check evidence |
+   |---|---|---|---|
+   | <claim> | accepted/disputed | <what changed, file:line> | <command output> |
+   ```
+5. **Round limit: 2.** If findings remain after two rounds, `move-ticket` to `2-stuck/`
+   with the surviving findings in the `### Stuck Reason` block. A third round means the
+   ticket's premise is wrong, not that the fix needs another nudge.
+6. On clean re-check, continue the lifecycle (→ `validate-ticket` or `agentic-commit`).
+
+### Honesty rules
+
+- Every accepted finding needs a **re-check that could have failed**. "Fixed it" with no
+  command output is not rectification.
+- Never mark a finding rectified by narrowing the test until it passes. If the assertion
+  had to be weakened, that IS the finding — escalate to stuck.
+- Report rectification rounds in the final summary. A ticket that needed 2 rounds is a
+  different quality signal than one that needed 0, and the user should see which.
+
+---
+
 ## Operation: spawn-ticket-mid-flow
 
 **First-class judgment**, not a side effect. When the agent discovers in-scope work during build / test / validate that doesn't belong in the current ticket, it MUST proactively file a new backlog ticket via `create-ticket` AND decide ordering. This is a core part of the agentic loop, not optional cleanup.
@@ -866,20 +1047,27 @@ Walks a planned stack's `members[]` end-to-end: refine → pass-2 → build → 
 ### Procedure
 
 1. Load `.skua/cache/stacks/<id>.json`. If `agentic_mode != true`, refuse — `run-stack` only operates in agentic mode (set by `flow-gate`).
-2. Update the stack record `status: "running"`, `started_at: <ISO>`. Echo a one-block plan summary (members, predicted touched files, token-budget cap) but do NOT ask for confirmation — the user already picked agentic at `flow-gate`. Adding a second gate here is the failure mode this op was redesigned against.
-3. **For each `member` in order:**
+   - **Explicit-list entry.** If the user names the tickets directly ("run 417, 418, 421 agentic"), do NOT round-trip through `plan-stack`. Synthesize a stack record `adhoc-<first-id>.json` with `agentic_mode: true` and those `members[]`, and proceed. `plan-stack` exists to CHOOSE members from a backlog; when the user has already chosen, running it is pure latency.
+2. Update the stack record `status: "running"`, `started_at: <ISO>`. Echo a one-block plan summary (members, the **concurrency partition** from step 3, predicted touched files, token-budget cap) but do NOT ask for confirmation — the user already picked agentic at `flow-gate`. Adding a second gate here is the failure mode this op was redesigned against.
+3. **Partition `members[]` into waves** per the Agentic speed contract §2: members with disjoint predicted `files_touched` and no `depends_on` edge between them go in the SAME wave and run in parallel; interacting members stay serial within their chain. Process wave by wave.
+4. **For each member (parallel within a wave):**
    1. **Kill-switch check.** If `.tickets/STOP` exists, mark stack `status: "halted"`, exit cleanly.
    2. **Token-budget check.** If cumulative tokens used >= `token_budget`, mark stack `status: "token_exhausted"`, halt.
-   3. **Determine current bucket** of the ticket. Drive it through the lifecycle without re-asking:
+   3. **Determine current bucket** of the ticket. Drive it through the lifecycle without re-asking, at the depth its `complexity` warrants (speed contract §1):
       - In `0-backlog/`: run `refine-from-backlog`. Lands in `1-staging/`.
       - In `1-staging/` without pass-2: run `refine-staging-pass-2`.
       - In `1-staging/` with pass-2: run `build-ticket`. Lands in `4-testing/`.
-      - In `4-testing/`: run `test-ticket`.
+      - In `4-testing/`: run `test-ticket` **and** `adversarial-pass` — concurrently, in one
+        message, for complexity ≥3; as a single combined subagent for complexity ≤2.
+      - Findings from either → `rectify-findings` (max 2 rounds), then continue. Only
+        route to `2-stuck/` after rectification fails, or for a question the agent
+        genuinely cannot answer.
       - In `5-validating/`: run `validate-ticket`, then `agentic-commit` (commit + push prompt is the only per-ticket user touch-point).
       - In `2-stuck/`: mark this member as `skipped: stuck`, continue to next. The agent itself decides whether a ticket should route to stuck — that's the agent's escape hatch when it genuinely can't proceed.
       - In `6-complete/` or `7-archive/`: mark as `skipped: already_done`, continue.
-4. After all members processed (or halted), update stack `status: "complete" | "halted" | "token_exhausted"`, `completed_at: <ISO>`, write any `git_log[]` entries from `agentic-commit`.
-5. Echo final summary to user.
+5. After all waves processed (or halted), update stack `status: "complete" | "halted" | "token_exhausted"`, `completed_at: <ISO>`, write any `git_log[]` entries from `agentic-commit`.
+6. Echo final summary to user — including per-ticket **rectification rounds** and any budget
+   overruns, so an under-rated ticket is visible rather than averaged away.
 
 ### Honesty rules
 

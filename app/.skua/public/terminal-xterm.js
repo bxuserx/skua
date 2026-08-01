@@ -24,7 +24,24 @@
 // this client carries no scrollback-restore machinery.
 
 const INPUT = 0x30; // '0'
-const RECONNECT_MS = 1000;
+// Reconnect backoff.
+//
+// This used to be a flat 1s retry with no cap and no backoff, which turned one
+// wedged ttyd into a machine-wide outage: ttyd leaks a PTY handle per client
+// connection and never releases it, macOS caps concurrent PTYs at
+// kern.tty.ptmx_max (511, system-wide — NOT per project), so an uncapped 1s
+// loop burns ~3600 handles/hour and exhausts the pool in minutes. Every
+// terminal in every project then goes blank, because ttyd can no longer
+// allocate a pty (`pty_spawn: Device not configured`) and closes the socket
+// with zero output frames.
+//
+// Backoff caps the bleed and the attempt limit stops it entirely; a terminal
+// that gives up shows a message and offers a manual retry, which costs one
+// handle instead of thousands.
+const RECONNECT_BASE_MS = 1000;
+const RECONNECT_MAX_MS = 30000;
+const RECONNECT_MAX_ATTEMPTS = 8;
+let reconnectAttempts = 0;
 
 // ── clipboard/selection debug ─────────────────────────────────────────────────
 // Flip CLIP_DEBUG to true to trace the copy path (which branch ran, whether the
@@ -37,8 +54,7 @@ function clog(msg) {
 }
 
 const params = new URLSearchParams(location.search);
-const port = params.get("port");
-const host = location.hostname || "127.0.0.1";
+const termId = params.get("id");
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();
@@ -92,6 +108,10 @@ function applyScheme() {
     const theme = activeSchemeTheme();
     term.options.theme = theme;
     document.documentElement.style.background = theme.background;
+    // Feed the overlay controls (the new-tab button) the same palette, so they
+    // stay legible on whichever scheme is active.
+    document.documentElement.style.setProperty("--term-fg", theme.foreground);
+    document.documentElement.style.setProperty("--term-bg", theme.background);
 }
 
 const fit = new FitAddon.FitAddon();
@@ -112,7 +132,11 @@ let reconnectTimer = null;
 let disposed = false;
 
 function wsUrl() {
-    return `ws://${host}:${port}/ws`;
+    // Same-origin: the dashboard proxies this to the session's ttyd unix socket.
+    // Previously this dialled ws://127.0.0.1:<ttyd port> directly, which is the
+    // surface any web page could also reach — that was remote code execution.
+    const scheme = location.protocol === "https:" ? "wss:" : "ws:";
+    return `${scheme}//${location.host}/api/terminals/${encodeURIComponent(termId)}/ws`;
 }
 
 function safeFit() {
@@ -137,6 +161,23 @@ function repaint() {
     } catch {
         /* transient renderer state — ignore */
     }
+}
+
+// New-tab button, overlaid on the zellij tab-bar row (see terminal-xterm.html).
+// It drives the same path a keystroke would: the tmux-style prefix Ctrl-a (0x01)
+// followed by `c`, which config.kdl binds to NewTab. Going through the keybinding
+// rather than `zellij action new-tab` means it stays correct if that binding is
+// ever remapped, and needs no second channel to the server.
+const newTabBtn = document.getElementById("term-newtab");
+if (newTabBtn) {
+    // mousedown, not click: the terminal takes focus on mousedown, so preventing
+    // the default here keeps focus in the pty and the button never becomes a
+    // focus trap that swallows the next keystroke.
+    newTabBtn.addEventListener("mousedown", (e) => e.preventDefault());
+    newTabBtn.addEventListener("click", () => {
+        sendInput("\x01c");
+        term.focus();
+    });
 }
 
 // Send raw bytes to the pty as a ttyd INPUT frame.
@@ -170,10 +211,26 @@ function applyPrefs(body) {
 
 function scheduleReconnect() {
     if (disposed || reconnectTimer) return;
+
+    if (reconnectAttempts >= RECONNECT_MAX_ATTEMPTS) {
+        term.write(
+            "\r\n\x1b[31mskua: terminal disconnected and could not reconnect.\x1b[0m\r\n" +
+                "\x1b[90mThe zellij session is still alive — your shell and anything running in it\r\n" +
+                "are untouched. Reload the page to retry.\x1b[0m\r\n",
+        );
+        return;
+    }
+
+    // Exponential with a ceiling, plus jitter so several dead panes don't
+    // synchronise into a thundering herd against the same ttyd.
+    const backoff = Math.min(RECONNECT_BASE_MS * 2 ** reconnectAttempts, RECONNECT_MAX_MS);
+    const delay = backoff * (0.7 + Math.random() * 0.6);
+    reconnectAttempts++;
+
     reconnectTimer = setTimeout(() => {
         reconnectTimer = null;
         connect();
-    }, RECONNECT_MS);
+    }, delay);
 }
 
 function connect() {
@@ -191,10 +248,18 @@ function connect() {
         safeFit();
         // Handshake: raw JSON, no command prefix.
         sock.send(enc.encode(JSON.stringify({ AuthToken: "", columns: term.cols, rows: term.rows })));
+        if (newTabBtn) newTabBtn.hidden = false;
     };
     sock.onmessage = (ev) => {
         const u = new Uint8Array(ev.data);
         if (!u.length) return;
+        // Reset the retry budget on the first byte, NOT on socket open. The
+        // dashboard accepts this WebSocket before it dials ttyd, so a dead ttyd
+        // still produces a successful `onopen` followed instantly by a close —
+        // resetting there made the cap unreachable and restored the infinite
+        // 1s retry loop this was meant to stop. Data proves the upstream is
+        // genuinely alive end to end.
+        reconnectAttempts = 0;
         const cmd = String.fromCharCode(u[0]);
         const body = u.subarray(1);
         if (cmd === "0") term.write(body); // OUTPUT
@@ -203,6 +268,7 @@ function connect() {
     };
     sock.onclose = () => {
         if (ws === sock) ws = null;
+        if (newTabBtn) newTabBtn.hidden = true; // nothing to open a tab on
         scheduleReconnect(); // ttyd respawn / page wake — zellij keeps the session
     };
     sock.onerror = () => {
@@ -397,8 +463,8 @@ function installKeyHandler() {
 
 // ── wiring ────────────────────────────────────────────────────────────────
 
-if (!port) {
-    term.write("\r\n\x1b[31mskua: missing ?port= for this terminal\x1b[0m\r\n");
+if (!termId) {
+    term.write("\r\n\x1b[31mskua: missing ?id= for this terminal\x1b[0m\r\n");
 } else {
     installKeyHandler();
     term.onData((d) => sendInput(d));

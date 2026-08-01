@@ -10,5 +10,7 @@
     "strict": true,
     "types": ["bun"]
   },
-  "include": ["server.ts", "skua.config.ts", "lib/**/*.ts", "scripts/**/*.ts"]
+  "include": ["server.ts", "skua.config.ts", "lib/**/*.ts", "scripts/**/*.ts"],
+  // Vendored third-party sources ship as-is and are not ours to typecheck.
+  "exclude": ["lib/vendor/**", "**/*.test.ts"]
 }

@@ -1,0 +1,25 @@
+{
+  // Typechecks the Claude Code hooks in hooks/, which are installed into a
+  // target repo's .claude/hooks/ and are NOT part of the vendored dashboard.
+  //
+  // This deliberately lives at the skua repo root rather than as an `include`
+  // in app/.skua/tsconfig.json: that file is vendored into every target repo,
+  // where a "../../hooks" path resolves to the parent of the user's repo (their
+  // hooks land in <target>/.claude/hooks). A path that is only correct in this
+  // checkout is exactly the class of bug this repo keeps shipping.
+  //
+  // Run:  cd app/.skua && bunx tsc --noEmit -p ../../tsconfig.hooks.json
+  "compilerOptions": {
+    "lib": ["ESNext"],
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "types": ["bun"],
+    "typeRoots": ["./app/.skua/node_modules/@types"]
+  },
+  "include": ["hooks/**/*.ts"]
+}

@@ -4,8 +4,6 @@
 // sessions live in a private ZELLIJ_SOCKET_DIR (.skua/cache/terminals/zellij),
 // invisible to any personal zellij. Targets zellij ≥ 0.40 (probed on 0.44.3).
 
-// The bare-pane layout (layouts/skua.kdl): no tab-bar/status-bar plugins —
-// the skua dashboard owns all chrome, the terminal is the entire screen.
 // (`zellij attach --create` ignores a --layout flag; the config default is the
 // reliable mechanism.)
 default_layout "skua"
@@ -15,9 +13,19 @@ default_layout "skua"
 // (Ctrl-a, see keybinds below) and Ctrl-g (native zellij escape hatch to Normal).
 default_mode "locked"
 
-// Belt-and-suspenders with the bare layout: no frames, no UI arrows.
+// No frames, no UI arrows; simplified_ui keeps the tab-bar on plain ASCII,
+// which xterm.js renders without a patched font.
 pane_frames false
 simplified_ui true
+
+// Drops the "(skua-term-…)" session id from the tab-bar.
+ui {
+    pane_frames {
+        hide_session_name true
+    }
+}
+
+theme "catppuccin-mocha"
 
 // Wheel scrolls zellij's server-side scrollback; a drag selects and (zellij
 // default) copies via OSC 52, which terminal-xterm.js forwards to the system

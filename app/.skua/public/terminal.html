@@ -57,14 +57,6 @@
                     </button>
                 </div>
                 <div class="term-utils" id="term-utils" hidden>
-                    <div class="term-bar-row3">
-                        <label class="term-scheme-label" for="term-scheme">theme</label>
-                        <select
-                            id="term-scheme"
-                            class="term-scheme-select"
-                            title="Terminal color scheme"
-                        ></select>
-                    </div>
                     <form id="term-cwd-form" class="term-cwd-form">
                         <input
                             type="text"
@@ -76,28 +68,20 @@
                         />
                         <button type="submit" class="term-btn">save</button>
                     </form>
+                    <!-- The Terminal / Claude tips buttons that used to sit here
+                         are now the Neovim / Terminal / Claude tabs of the
+                         shared help (?) modal in the navbar. The "saved ✓" tag
+                         confirms the cwd write, so it tracks the form above it. -->
                     <div class="term-utils-row">
-                        <button
-                            type="button"
-                            id="term-tips"
-                            class="term-tips-btn"
-                            title="Terminal tips"
-                            aria-label="Terminal tips"
-                        >
-                            <span class="term-tips-icon" aria-hidden="true">💡</span>
-                            <span class="term-tips-text">Terminal tips</span>
-                        </button>
-                        <button
-                            type="button"
-                            id="term-claude-tips"
-                            class="term-tips-btn"
-                            title="Claude tips"
-                            aria-label="Claude tips"
-                        >
-                            <span class="term-tips-icon" aria-hidden="true">✨</span>
-                            <span class="term-tips-text">Claude tips</span>
-                        </button>
                         <span id="term-cwd-saved" class="term-cwd-saved" hidden>saved ✓</span>
+                    </div>
+                    <div class="term-bar-row3">
+                        <label class="term-scheme-label" for="term-scheme">theme</label>
+                        <select
+                            id="term-scheme"
+                            class="term-scheme-select"
+                            title="Terminal color scheme"
+                        ></select>
                     </div>
                     <p id="term-bar-error" class="term-error" hidden></p>
                 </div>
@@ -122,271 +106,6 @@
                 </div>
             </section>
         </main>
-
-        <!-- Neovim tips modal: toggled by #term-tips, wired in terminal.js. -->
-        <div class="modal" id="term-tips-modal" hidden>
-            <div class="modal-backdrop" data-modal-close></div>
-            <div class="modal-card term-tips-card">
-                <header class="modal-head">
-                    <h3>Terminal quick reference</h3>
-                    <button
-                        type="button"
-                        class="close-btn"
-                        data-modal-close
-                        aria-label="Close"
-                    >
-                        ×
-                    </button>
-                </header>
-
-                <div class="modal-body term-tips-body">
-                    <!-- ── Neovim (skua's default editor; click-to-open prefers
-                         nvim). Bindings mirror the managed init.lua — leader is
-                         Space (vim.g.mapleader = ' '). ── -->
-                    <h4 class="term-tips-title">File editing and navigation using Neovim</h4>
-
-                    <div class="term-tips-hero">
-                        <code class="term-tips-key">Space e</code>
-                        <div class="term-tips-hero-text">
-                            <strong>Space</strong> is the leader key — your
-                            shortcut prefix: tap <kbd>Space</kbd>, then the next
-                            key (pause after Space for a menu of every command).
-                            <code>Space e</code> toggles the neo-tree file
-                            browser; <code>\</code> reveals the current file in
-                            the tree. Inside the tree: <kbd>Enter</kbd> opens a
-                            file, <code>a</code> / <code>d</code> / <code>r</code>
-                            add / delete / rename, <code>H</code> toggles hidden
-                            files, <kbd>?</kbd> shows every key.
-                        </div>
-                    </div>
-
-                    <div class="term-tips-hero">
-                        <code class="term-tips-key">Space g d</code>
-                        <div class="term-tips-hero-text">
-                            See changes right in the file like GitHub — green
-                            added / changed lines, red removed lines shown inline.
-                            <code>Space g d</code> toggles the inline diff;
-                            <code>Space g p</code> expands just the hunk under the
-                            cursor; <code>Space g D</code> opens a full split diff
-                            against the last commit.
-                        </div>
-                    </div>
-
-                    <section class="term-tips-section">
-                        <h4 class="term-tips-h">Files &amp; windows</h4>
-                        <ul class="term-tips-list">
-                            <li><code>:e file</code><span>open / edit a file</span></li>
-                            <li><code>:w</code><span>save (write)</span></li>
-                            <li><code>:wq</code> / <code>ZZ</code><span>save &amp; quit</span></li>
-                            <li><code>:q</code> / <code>:q!</code><span>quit / force quit</span></li>
-                            <li><code>:sp</code> / <code>:vs</code><span>split horizontal / vertical</span></li>
-                            <li><code>Ctrl-w w</code><span>jump between splits</span></li>
-                        </ul>
-                    </section>
-
-                    <section class="term-tips-section">
-                        <h4 class="term-tips-h">Editing</h4>
-                        <ul class="term-tips-list">
-                            <li><code>i</code> / <code>a</code><span>insert / append</span></li>
-                            <li><kbd>Esc</kbd><span>back to normal mode</span></li>
-                            <li><code>dd</code><span>delete line</span></li>
-                            <li><code>dw</code> / <code>dW</code><span>delete word / WORD</span></li>
-                            <li><code>dE</code><span>delete to end of WORD</span></li>
-                            <li><code>yy</code> / <code>p</code><span>yank line / paste</span></li>
-                            <li><code>u</code> / <code>Ctrl-r</code><span>undo / redo</span></li>
-                        </ul>
-                    </section>
-
-                    <div class="term-tips-cols">
-                        <section class="term-tips-section">
-                            <h4 class="term-tips-h">Move ↕ vertical</h4>
-                            <ul class="term-tips-list term-tips-list--single">
-                                <li><code>gg</code> / <code>G</code><span>top / bottom of file</span></li>
-                                <li><code>Ctrl-d</code> / <code>Ctrl-u</code><span>half-page down / up</span></li>
-                                <li><code>Ctrl-f</code> / <code>Ctrl-b</code><span>full page down / up</span></li>
-                                <li><code>{</code> / <code>}</code><span>prev / next paragraph</span></li>
-                            </ul>
-                        </section>
-
-                        <section class="term-tips-section">
-                            <h4 class="term-tips-h">Move ↔ horizontal</h4>
-                            <ul class="term-tips-list term-tips-list--single">
-                                <li><code>0</code> / <code>$</code><span>start / end of line</span></li>
-                                <li><code>^</code><span>first non-blank char</span></li>
-                                <li><code>w</code> / <code>b</code><span>next / prev word</span></li>
-                                <li><code>e</code><span>end of word</span></li>
-                                <li><code>%</code><span>jump to matching ( ) [ ] { }</span></li>
-                            </ul>
-                        </section>
-                    </div>
-
-                    <div class="term-tips-cols">
-                        <section class="term-tips-section">
-                            <h4 class="term-tips-h">Search &amp; find</h4>
-                            <ul class="term-tips-list term-tips-list--single">
-                                <li><code>/text</code> then <kbd>n</kbd><span>search, next match</span></li>
-                                <li><code>:%s/old/new/g</code><span>replace all</span></li>
-                                <li><code>Space s f</code><span>find files (fuzzy)</span></li>
-                                <li><code>Space s g</code><span>live-grep project text</span></li>
-                                <li><code>Space Space</code><span>switch open files</span></li>
-                            </ul>
-                        </section>
-
-                        <section class="term-tips-section">
-                            <h4 class="term-tips-h">Git in the buffer</h4>
-                            <ul class="term-tips-list term-tips-list--single">
-                                <li><code>Space g d</code><span>toggle inline diff (red / green)</span></li>
-                                <li><code>Space g p</code><span>preview this hunk inline</span></li>
-                                <li><code>]h</code> / <code>[h</code><span>next / prev change</span></li>
-                                <li><code>Space g b</code><span>blame this line</span></li>
-                                <li><code>Space g D</code><span>split diff vs last commit</span></li>
-                            </ul>
-                        </section>
-                    </div>
-
-                    <!-- ── Multiplexer (zellij): splits, tabs, scrollback for
-                         every terminal tab. Prefix + bindings mirror
-                         .skua/lib/zellij/config.kdl. ── -->
-                    <h4 class="term-tips-title">Controlling terminal windows</h4>
-
-                    <div class="term-tips-hero">
-                        <code class="term-tips-key">Ctrl-a</code>
-                        <div class="term-tips-hero-text">
-                            The <strong>prefix</strong> for the terminal
-                            multiplexer (zellij) that drives splits, tabs and
-                            scrollback. Press <code>Ctrl-a</code>, release, then
-                            one command below — you land right back in the shell.
-                            <code>Ctrl-a</code> twice sends a literal Ctrl-a;
-                            <kbd>Esc</kbd> cancels the prefix; <code>Ctrl-g</code>
-                            drops to zellij's native mode.
-                        </div>
-                    </div>
-
-                    <div class="term-tips-cols">
-                        <section class="term-tips-section">
-                            <h4 class="term-tips-h">Panes — after Ctrl-a</h4>
-                            <ul class="term-tips-list term-tips-list--single">
-                                <li><code>|</code> / <code>-</code><span>split right / down (also <code>%</code> <code>"</code>)</span></li>
-                                <li><code>h</code> <code>j</code> <code>k</code> <code>l</code><span>focus pane ← ↓ ↑ → (or arrows)</span></li>
-                                <li><code>o</code><span>cycle to next pane</span></li>
-                                <li><code>{</code> / <code>}</code><span>move pane left / right</span></li>
-                                <li><code>z</code><span>zoom pane to fullscreen</span></li>
-                                <li><code>x</code><span>close pane</span></li>
-                                <li><code>!</code><span>break pane into its own tab</span></li>
-                            </ul>
-                        </section>
-
-                        <section class="term-tips-section">
-                            <h4 class="term-tips-h">Tabs, resize &amp; session — after Ctrl-a</h4>
-                            <ul class="term-tips-list term-tips-list--single">
-                                <li><code>c</code><span>new tab (window)</span></li>
-                                <li><code>n</code> / <code>p</code><span>next / previous tab</span></li>
-                                <li><code>1</code>–<code>9</code><span>jump to tab N</span></li>
-                                <li><code>,</code><span>rename tab (Enter confirms)</span></li>
-                                <li><code>&amp;</code><span>close tab</span></li>
-                                <li><code>H</code> <code>J</code> <code>K</code> <code>L</code><span>resize pane (repeats; Esc exits)</span></li>
-                                <li><code>Space</code><span>cycle pane layout</span></li>
-                                <li><code>[</code><span>scroll / copy mode (<code>q</code> exits)</span></li>
-                                <li><code>d</code><span>detach session</span></li>
-                            </ul>
-                        </section>
-                    </div>
-                </div>
-
-                <footer class="modal-foot">
-                    <button
-                        type="button"
-                        class="btn btn--secondary"
-                        data-modal-close
-                    >
-                        Close
-                    </button>
-                </footer>
-            </div>
-        </div>
-
-        <!-- Claude tips modal: toggled by #term-claude-tips, wired in terminal.js. -->
-        <div class="modal" id="term-claude-tips-modal" hidden>
-            <div class="modal-backdrop" data-modal-close></div>
-            <div class="modal-card term-tips-card">
-                <header class="modal-head">
-                    <h3>Claude slash commands</h3>
-                    <button
-                        type="button"
-                        class="close-btn"
-                        data-modal-close
-                        aria-label="Close"
-                    >
-                        ×
-                    </button>
-                </header>
-
-                <div class="modal-body term-tips-body">
-                    <div class="term-tips-hero">
-                        <code class="term-tips-key">/</code>
-                        <div class="term-tips-hero-text">
-                            Type <code>/</code> at the start of the prompt to see
-                            every command with autocomplete. These are the ones
-                            you'll reach for most.
-                        </div>
-                    </div>
-
-                    <div class="term-tips-cols">
-                        <section class="term-tips-section">
-                            <h4 class="term-tips-h">Context &amp; session</h4>
-                            <ul class="term-tips-list term-tips-list--single">
-                                <li><code>/clear</code><span>wipe history, reset context</span></li>
-                                <li><code>/compact</code><span>summarize &amp; keep going</span></li>
-                                <li><code>/rename</code><span>rename this session</span></li>
-                                <li><code>/resume</code><span>reopen a past session</span></li>
-                                <li><code>/cost</code><span>tokens &amp; cost used</span></li>
-                            </ul>
-                        </section>
-
-                        <section class="term-tips-section">
-                            <h4 class="term-tips-h">Model &amp; output</h4>
-                            <ul class="term-tips-list term-tips-list--single">
-                                <li><code>/model</code><span>switch Claude model</span></li>
-                                <li><code>/effort</code><span>set reasoning effort</span></li>
-                                <li><code>/fast</code><span>toggle fast mode</span></li>
-                            </ul>
-                        </section>
-                    </div>
-
-                    <div class="term-tips-cols">
-                        <section class="term-tips-section">
-                            <h4 class="term-tips-h">Extend &amp; configure</h4>
-                            <ul class="term-tips-list term-tips-list--single">
-                                <li><code>/plugin</code><span>install / manage plugins</span></li>
-                                <li><code>/mcp</code><span>manage MCP servers</span></li>
-                                <li><code>/agents</code><span>manage subagents</span></li>
-                                <li><code>/config</code><span>open settings</span></li>
-                            </ul>
-                        </section>
-
-                        <section class="term-tips-section">
-                            <h4 class="term-tips-h">Project &amp; help</h4>
-                            <ul class="term-tips-list term-tips-list--single">
-                                <li><code>/init</code><span>write a CLAUDE.md</span></li>
-                                <li><code>/review</code><span>review a PR / diff</span></li>
-                                <li><code>/memory</code><span>edit memory files</span></li>
-                                <li><code>/help</code><span>list every command</span></li>
-                            </ul>
-                        </section>
-                    </div>
-                </div>
-
-                <footer class="modal-foot">
-                    <button
-                        type="button"
-                        class="btn btn--secondary"
-                        data-modal-close
-                    >
-                        Close
-                    </button>
-                </footer>
-            </div>
-        </div>
 
         <!-- skua:howto-modal -->
 

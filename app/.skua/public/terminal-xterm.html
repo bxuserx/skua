@@ -41,10 +41,52 @@
             .xterm {
                 height: 100%;
             }
+            /* New-tab affordance, parked on the zellij tab-bar row.
+               The tab-bar is a WASM plugin painting terminal cells, so a real
+               button cannot be added *inside* it — this is a DOM overlay pinned
+               to the right of that row, where tab names (which grow from the
+               left) will not reach it. Colors come from the active xterm scheme
+               via --term-fg/--term-bg, set in applyScheme(). */
+            #term-newtab {
+                position: absolute;
+                top: 4px;
+                right: 6px;
+                z-index: 5;
+                width: 20px;
+                height: 18px;
+                padding: 0;
+                border: 0;
+                border-radius: 4px;
+                background: transparent;
+                color: var(--term-fg, #888);
+                opacity: 0.45;
+                font: inherit;
+                font-size: 14px;
+                line-height: 1;
+                cursor: pointer;
+                transition: opacity 0.12s ease, background-color 0.12s ease;
+            }
+            #term-newtab:hover,
+            #term-newtab:focus-visible {
+                opacity: 1;
+                background: color-mix(in srgb, var(--term-fg, #888) 18%, transparent);
+            }
+            #term-newtab[hidden] {
+                display: none;
+            }
         </style>
     </head>
     <body>
         <div id="term"></div>
+        <button
+            id="term-newtab"
+            type="button"
+            title="New zellij tab (Ctrl-a c)"
+            aria-label="New zellij tab"
+            hidden
+        >
+            +
+        </button>
         <!-- UMD globals must load before the client: xterm.js → `Terminal`,
              addon-fit.js → `FitAddon.FitAddon`. Classic scripts, in order.
              No renderer addon is loaded, so xterm uses its built-in DOM

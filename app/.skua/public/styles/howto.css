@@ -22,12 +22,73 @@
     color: var(--ink);
     border-color: var(--ink);
 }
+/* Wider than the 640px board-only modal was: the Neovim tab is a two-column
+   keybinding reference (see .term-tips-cols in terminal.css). */
 .howto-card {
-    width: min(640px, calc(100% - 32px));
+    width: min(940px, calc(100% - 32px));
 }
 .howto-body {
     gap: 0;
     padding: 0;
+}
+
+/* ── Tabs (Board / Neovim / Terminal / Claude) ─────────────────────── */
+.howto-tabs {
+    display: flex;
+    gap: 2px;
+    padding: 0 10px;
+    border-bottom: 1px solid var(--rule);
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+.howto-tabs::-webkit-scrollbar {
+    display: none;
+}
+.howto-tab {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 12px;
+    background: transparent;
+    border: none;
+    /* Sits on top of the tablist's 1px rule so the active tab reads as
+       connected to the panel below it. */
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    color: var(--muted);
+    cursor: pointer;
+    white-space: nowrap;
+    transition:
+        color 120ms,
+        border-color 120ms;
+}
+.howto-tab:hover {
+    color: var(--ink);
+}
+.howto-tab[aria-selected="true"] {
+    color: var(--ink);
+    border-bottom-color: var(--accent);
+}
+.howto-tab:focus-visible {
+    outline: 1px solid var(--accent);
+    outline-offset: -3px;
+}
+.howto-tab-icon {
+    font-size: 0.9em;
+    line-height: 1;
+}
+.howto-panel[hidden] {
+    display: none;
+}
+/* Board sections carry their own padding; the keybinding panels don't. */
+.howto-panel--tips {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 16px 18px;
 }
 .howto-section {
     padding: 14px 18px;

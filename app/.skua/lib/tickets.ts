@@ -208,7 +208,11 @@ export async function writeTicket(
 ): Promise<void> {
   const found = await findTicket(id);
   if (!found) throw new Error(`ticket ${id} not found`);
-  const serialized = serialize(frontmatter, body);
+  // Re-parse the file on disk and thread it through as `prev` so the write lands
+  // on the ORIGINAL document: keys nobody edited keep their comments, quoting and
+  // ordering. Without this every save would silently reformat a hand-written
+  // ticket even when nothing about it changed.
+  const serialized = serialize(frontmatter, body, parse(found.raw));
   // atomic write: write to .tmp sibling, then rename
   const tmp = found.path + ".tmp";
   await writeFile(tmp, serialized, "utf8");
@@ -236,8 +240,10 @@ export async function moveTicket(
   const filename = found.path.split("/").pop()!;
   const destPath = join(destDir, filename);
 
-  // write new content to dest path (atomically), then unlink old
-  const serialized = serialize(parsed.frontmatter, parsed.body);
+  // write new content to dest path (atomically), then unlink old.
+  // `parsed` carries the retained document, so a bucket move rewrites only
+  // `status`/`completed` and leaves the rest of the file byte-identical.
+  const serialized = serialize(parsed.frontmatter, parsed.body, parsed);
   const tmp = destPath + ".tmp";
   await writeFile(tmp, serialized, "utf8");
   await rename(tmp, destPath);
@@ -330,7 +336,11 @@ export async function createTicket(input: CreateInput): Promise<TicketFull> {
   if (!BUCKETS.includes(bucket)) throw new Error(`invalid bucket: ${bucket}`);
 
   const id = await nextTicketId();
-  const domain = (input.domain ?? "meta").trim() || "meta";
+  // Slugified, not just trimmed: `domain` is interpolated into the filename, so a
+  // raw value containing "/" or ".." escapes the bucket — join() normalizes the
+  // traversal lexically and the write lands outside TICKETS_ROOT entirely.
+  // Sanitizing here rather than in the route covers the CLIs and the skills too.
+  const domain = slugify(input.domain ?? "meta", "meta");
   const slug = slugify(title);
   const filename = `${id}-${domain}-${slug}.md`;
   const destDir = join(TICKETS_ROOT, bucket);
@@ -369,12 +379,12 @@ export async function createTicket(input: CreateInput): Promise<TicketFull> {
   return { ...s, frontmatter: parsed.frontmatter, body: parsed.body };
 }
 
-function slugify(s: string): string {
+function slugify(s: string, fallback = "untitled"): string {
   return s
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
-    .slice(0, 60) || "untitled";
+    .slice(0, 60) || fallback;
 }
 
 export function today(): string {
@@ -391,22 +401,22 @@ function summary(
 ): TicketSummary {
   const fm = parsed.frontmatter;
   const m = filename.match(TKT_RE);
-  const id = (fm.id as string | undefined) ?? (m ? `TKT-${m[1]}` : filename);
+  const id = str(fm.id) ?? (m ? `TKT-${m[1]}` : filename);
   return {
     id,
-    title: (fm.title as string | undefined) ?? "(untitled)",
-    priority: (fm.priority as string | undefined) ?? "Medium",
-    domain: (fm.domain as string | undefined) ?? "meta",
+    title: str(fm.title) ?? "(untitled)",
+    priority: str(fm.priority) ?? "Medium",
+    domain: str(fm.domain) ?? "meta",
     complexity: toNum(fm.complexity),
-    tags: (fm.tags as string[] | undefined) ?? [],
+    tags: strList(fm.tags),
     filename,
     bucket,
-    created: fm.created as string | undefined,
-    completed: fm.completed as string | undefined,
-    depends_on: (fm.depends_on as string[] | undefined) ?? [],
-    blocks: (fm.blocks as string[] | undefined) ?? [],
-    related: (fm.related as string[] | undefined) ?? [],
-    files_touched: (fm.files_touched as string[] | undefined) ?? [],
+    created: str(fm.created),
+    completed: str(fm.completed),
+    depends_on: strList(fm.depends_on),
+    blocks: strList(fm.blocks),
+    related: strList(fm.related),
+    files_touched: strList(fm.files_touched),
     implements_adr: typeof fm.implements_adr === "string" ? fm.implements_adr : undefined,
     next_step_hint: resolveNextStepHint(fm, bucket, parsed.body),
     malformed: parsed.malformed,
@@ -423,6 +433,26 @@ function idNum(id: string): number {
  *  string "3" — without this, complexity reads back as undefined and the
  *  complexity-based routing (plan-stack, chaos's complexity cap) silently
  *  never fires. */
+/** Coerce a frontmatter scalar to the string TicketSummary promises.
+ *
+ *  The old hand-rolled parser returned every scalar as a string, so `as string`
+ *  casts were accurate. A real YAML parser does not: `title: 2026` is a number
+ *  and `id: 404` is a number, and a cast would let one reach the UI typed as a
+ *  string — where `.localeCompare` in the board's sort throws. Casts are
+ *  invisible to `tsc`, so this has to be a runtime conversion. */
+function str(v: unknown): string | undefined {
+  if (v === undefined || v === null) return undefined;
+  if (typeof v === "string") return v;
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  return undefined; // maps/lists are not scalars — treat as absent
+}
+
+/** Same, for the string-list fields. */
+function strList(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  return v.map(str).filter((s): s is string => s !== undefined);
+}
+
 function toNum(v: unknown): number | undefined {
   if (typeof v === "number") return Number.isFinite(v) ? v : undefined;
   if (typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v))) {

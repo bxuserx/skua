@@ -648,6 +648,7 @@
         "rose-pine-dawn": {
             // Rosé Pine Dawn — the light variant.
             label: "Rosé Pine Dawn",
+            light: true,
             theme: {
                 background: "#faf4ed",
                 foreground: "#575279",
@@ -753,6 +754,7 @@
         },
         "solarized-light": {
             label: "Solarized Light",
+            light: true,
             theme: {
                 background: "#fdf6e3",
                 foreground: "#657b83",
@@ -780,6 +782,7 @@
         "gruvbox-light": {
             // Gruvbox light, medium contrast.
             label: "Gruvbox Light",
+            light: true,
             theme: {
                 background: "#fbf1c7",
                 foreground: "#3c3836",
@@ -802,6 +805,95 @@
                 brightMagenta: "#8f3f71",
                 brightCyan: "#427b58",
                 brightWhite: "#3c3836",
+            },
+        },
+        "catppuccin-latte": {
+            // Official Catppuccin Latte (catppuccin/palette): base/text for the
+            // surface, rosewater cursor, and the published ANSI mapping —
+            // subtext1/0 for black, pink→magenta, teal→cyan, surface2/1 for white.
+            // The light counterpart to the three Catppuccin darks above.
+            label: "Catppuccin Latte",
+            light: true,
+            theme: {
+                background: "#eff1f5",
+                foreground: "#4c4f69",
+                cursor: "#dc8a78",
+                cursorAccent: "#eff1f5",
+                selectionBackground: "rgba(172,176,190,0.5)",
+                black: "#5c5f77",
+                red: "#d20f39",
+                green: "#40a02b",
+                yellow: "#df8e1d",
+                blue: "#1e66f5",
+                magenta: "#ea76cb",
+                cyan: "#179299",
+                white: "#acb0be",
+                brightBlack: "#6c6f85",
+                brightRed: "#d20f39",
+                brightGreen: "#40a02b",
+                brightYellow: "#df8e1d",
+                brightBlue: "#1e66f5",
+                brightMagenta: "#ea76cb",
+                brightCyan: "#179299",
+                brightWhite: "#bcc0cc",
+            },
+        },
+        "github-light": {
+            // GitHub Light, ANSI values as published in github/github-vscode-theme.
+            // Pairs with GitHub Dark above.
+            label: "GitHub Light",
+            light: true,
+            theme: {
+                background: "#ffffff",
+                foreground: "#24292f",
+                cursor: "#24292f",
+                cursorAccent: "#ffffff",
+                selectionBackground: "rgba(84,174,255,0.4)",
+                black: "#24292f",
+                red: "#cf222e",
+                green: "#116329",
+                yellow: "#4d2d00",
+                blue: "#0969da",
+                magenta: "#8250df",
+                cyan: "#1b7c83",
+                white: "#6e7781",
+                brightBlack: "#57606a",
+                brightRed: "#a40e26",
+                brightGreen: "#1a7f37",
+                brightYellow: "#633c01",
+                brightBlue: "#218bff",
+                brightMagenta: "#a475f9",
+                brightCyan: "#3192aa",
+                brightWhite: "#8c959f",
+            },
+        },
+        "one-half-light": {
+            // One Half Light (sonph/onehalf) — the canonical light sibling of the
+            // One Dark family.
+            label: "One Half Light",
+            light: true,
+            theme: {
+                background: "#fafafa",
+                foreground: "#383a42",
+                cursor: "#383a42",
+                cursorAccent: "#fafafa",
+                selectionBackground: "rgba(189,197,208,0.5)",
+                black: "#383a42",
+                red: "#e45649",
+                green: "#50a14f",
+                yellow: "#c18401",
+                blue: "#0184bc",
+                magenta: "#a626a4",
+                cyan: "#0997b3",
+                white: "#fafafa",
+                brightBlack: "#4f525e",
+                brightRed: "#e45649",
+                brightGreen: "#50a14f",
+                brightYellow: "#c18401",
+                brightBlue: "#0184bc",
+                brightMagenta: "#a626a4",
+                brightCyan: "#0997b3",
+                brightWhite: "#ffffff",
             },
         },
     };

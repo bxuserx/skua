@@ -77,7 +77,9 @@ Self-init ticket search. Finds `#navbar-search` / `#navbar-search-results`
 
 Self-init wiring for the `skua:howto-modal` partial — finds the help (`?`)
 button and `#howto-modal` (both from the shared navbar) and handles
-open/close/Escape. No exports.
+open/close/Escape plus the four-tab switching (click, ←/→, Home/End, roving
+tabindex). The last-viewed tab is remembered in `localStorage` under
+`skua.howto.tab`. No exports.
 
 ## Server-side partials
 
@@ -110,9 +112,19 @@ used by `ticket.html`) adds the `#status` save-indicator slot read by
 ### `skua:howto-modal`
 
 The shared how-to modal. Source markup is `.skua/public/howto-modal.html`,
-injected by `renderHowtoModal()` in `.skua/server.ts`. Open/close/Escape
-wiring lives in the self-init `components/howto.js` module (loaded on every
-page); the help button itself is part of `skua:navbar`.
+injected by `renderHowtoModal()` in `.skua/server.ts`. Open/close/Escape and
+tab wiring live in the self-init `components/howto.js` module (loaded on
+every page); the help button itself is part of `skua:navbar`.
+
+Four tabs: **Board** (ticket lifecycle + `ticket-manager` prompts),
+**Neovim**, **Terminal** (zellij), **Claude** (slash commands). The last
+three were standalone modals behind their own buttons on `/terminal` until
+they were folded in here, so the help button is the one place to look from
+any view. Their markup still uses the `term-tips-*` classes from
+`styles/terminal.css`; tab chrome is `.howto-tab*` / `.howto-panel*` in
+`styles/howto.css`. To add a tab, add a `role="tab"` button and a matching
+`role="tabpanel"` div — `howto.js` discovers both by class and pairs them via
+`aria-controls`, so no JS change is needed.
 
 Markup contract:
 

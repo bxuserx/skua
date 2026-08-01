@@ -1,6 +1,11 @@
 import { readdir, readFile, writeFile, rename, unlink, mkdir, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { parse as parseFm, type Frontmatter } from "./frontmatter.ts";
+import {
+  parse as parseFm,
+  serialize as serializeFm,
+  type Frontmatter,
+  type ParsedFile,
+} from "./frontmatter.ts";
 import {
   createTicket,
   findTicket,
@@ -78,129 +83,42 @@ export type AdrSummary = {
 export type ParsedAdr = {
   frontmatter: AdrFrontmatter;
   body: string;
+  /** Retained YAML Document from frontmatter.parse — threaded into serializeAdr
+   *  so an ADR's comments and formatting survive a write. Opaque. */
+  _doc?: unknown;
 };
 
 const ADR_FILENAME_RE = /^ADR-(\d+)-.*\.md$/;
 
 // ---------------------------------------------------------------------------
-// Parsing — extends frontmatter.ts to handle block-list-of-objects (which the
-// ticket parser doesn't need: tickets only have scalar lists).
+// Parsing — frontmatter.ts handles the YAML; this layer only applies ADR
+// defaults on top of it.
 // ---------------------------------------------------------------------------
 
-function stripScalar(s: string): string {
-  s = s.trim();
-  // Quoted scalar: read to the matching closing quote so a '#' inside the
-  // value stays literal (it is NOT a comment), and any trailing " # comment"
-  // after the close is dropped. Double-quoted values honor backslash escapes.
-  const q = s[0];
-  if (q === '"' || q === "'") {
-    let out = "";
-    for (let i = 1; i < s.length; i++) {
-      const c = s[i];
-      if (q === '"' && c === "\\" && i + 1 < s.length) { out += s[i + 1]; i++; continue; }
-      if (c === q) return out;
-      out += c;
-    }
-    // Unterminated quote — fall through to bare handling.
-  }
-  // Unquoted scalar: a whitespace-prefixed '#' starts a trailing comment.
-  return s.replace(/\s+#.*$/, "").trim();
-}
 
-function parseScalarOrInlineList(v: string): string | string[] | null {
-  const t = v.trim();
-  if (t === "null") return null;
-  if (t.startsWith("[") && t.endsWith("]")) {
-    const inner = t.slice(1, -1).trim();
-    return inner === "" ? [] : inner.split(",").map((s) => stripScalar(s.trim()));
-  }
-  return stripScalar(t);
-}
 
-function parseObjectListFromRaw(raw: string, key: string): Array<Record<string, unknown>> {
-  const lines = raw.split(/\r?\n/);
-  if (lines[0] !== "---") return [];
-  let fmEnd = -1;
-  for (let i = 1; i < lines.length; i++) {
-    if (/^---\s*$/.test(lines[i])) {
-      fmEnd = i;
-      break;
-    }
-  }
-  if (fmEnd < 0) return [];
-  const fm = lines.slice(1, fmEnd);
-
-  let keyIdx = -1;
-  const keyRe = new RegExp(`^${key}:\\s*$`);
-  for (let i = 0; i < fm.length; i++) {
-    if (keyRe.test(fm[i])) {
-      keyIdx = i;
-      break;
-    }
-  }
-  if (keyIdx < 0) return [];
-
-  const items: Array<Record<string, unknown>> = [];
-  let current: Record<string, unknown> | null = null;
-  let i = keyIdx + 1;
-
-  while (i < fm.length) {
-    const line = fm[i];
-    if (/^[A-Za-z_]/.test(line)) break;
-    if (!line.trim()) {
-      i++;
-      continue;
-    }
-    const itemStart = line.match(/^\s+-\s+([A-Za-z_]\w*):\s*(.*)$/);
-    if (itemStart) {
-      if (current) items.push(current);
-      current = {};
-      current[itemStart[1]] = parseScalarOrInlineList(itemStart[2]);
-      i++;
-      continue;
-    }
-    const sub = line.match(/^\s+([A-Za-z_]\w*):\s*(.*)$/);
-    if (sub && current) {
-      const [, k, v] = sub;
-      if (v === "") {
-        const subItems: string[] = [];
-        i++;
-        while (i < fm.length && /^\s+-\s+/.test(fm[i]) && !/^\s+-\s+[A-Za-z_]\w*:/.test(fm[i])) {
-          subItems.push(stripScalar(fm[i].replace(/^\s+-\s+/, "")));
-          i++;
-        }
-        current[k] = subItems;
-        continue;
-      }
-      current[k] = parseScalarOrInlineList(v);
-      i++;
-      continue;
-    }
-    i++;
-  }
-  if (current) items.push(current);
-  return items;
-}
 
 function parseAdr(raw: string): ParsedAdr {
   const base = parseFm(raw);
   const fm = base.frontmatter as AdrFrontmatter;
 
-  const proposed = parseObjectListFromRaw(raw, "proposed_tickets") as DraftTicket[];
-  const materialized = parseObjectListFromRaw(raw, "materialized_tickets") as MaterializedTicket[];
-  if (proposed.length > 0) fm.proposed_tickets = proposed;
-  if (materialized.length > 0) fm.materialized_tickets = materialized;
-
-  // Normalize null literal — frontmatter.ts returns it as the string "null".
+  // `proposed_tickets` / `materialized_tickets` are lists of objects. The old
+  // hand-rolled parser collapsed any nested map to `[]`, so parseObjectListFromRaw
+  // re-scanned the raw text to recover them; the YAML parser reads them natively
+  // (verified against the exact output the previous serializer emitted), so that
+  // second pass is gone.
+  //
+  // `decided`/`superseded_by` used to arrive as the STRING "null" and needed
+  // normalising. Real YAML yields an actual null, so only absence is handled —
+  // the string form is still accepted in case an older file carries it quoted.
   if (fm.decided === "null" || fm.decided === undefined) fm.decided = null;
   if (fm.superseded_by === "null" || fm.superseded_by === undefined) fm.superseded_by = null;
 
-  return { frontmatter: fm, body: base.body };
+  return { frontmatter: fm, body: base.body, _doc: base._doc };
 }
 
 // ---------------------------------------------------------------------------
-// Serialization — ADR-specific key order. Mirrors frontmatter.ts:serialize
-// pattern but for the ADR namespace.
+// Serialization — ADR-specific key order, on frontmatter.ts's YAML core.
 // ---------------------------------------------------------------------------
 
 const ADR_KEY_ORDER = [
@@ -221,92 +139,27 @@ const ADR_KEY_ORDER = [
   "complexity",
 ];
 
-// `title` is always quoted (may contain colons / specials). `domain` is bare
-// in the canonical ADR format (matches the existing ADR-001 source), so the
-// parse → serialize round-trip is byte-identical for ADRs whose `domain` is
-// a simple slug. If we ever need quoted domains, lift this to a per-field
-// quoting decision driven by value-shape inspection rather than key name.
-const ADR_QUOTED_KEYS = new Set(["title"]);
-const ADR_BLOCK_SCALAR_LIST_KEYS = new Set([
-  "deciders",
-  "supersedes",
-  "related_tickets",
-  "tags",
-]);
 
-function emitObjectList(out: string[], key: string, v: unknown): void {
-  if (!Array.isArray(v) || v.length === 0) {
-    out.push(`${key}: []`);
-    return;
-  }
-  out.push(`${key}:`);
-  if (key === "proposed_tickets") {
-    for (const item of v as DraftTicket[]) {
-      out.push(`  - draft_id: ${item.draft_id}`);
-      out.push(`    title: "${item.title.replace(/"/g, '\\"')}"`);
-      if (!item.depends_on || item.depends_on.length === 0) {
-        out.push(`    depends_on: []`);
-      } else {
-        out.push(`    depends_on:`);
-        for (const d of item.depends_on) out.push(`      - ${d}`);
-      }
-    }
-    return;
-  }
-  if (key === "materialized_tickets") {
-    for (const item of v as MaterializedTicket[]) {
-      out.push(`  - draft_id: ${item.draft_id}`);
-      out.push(`    ticket_id: ${item.ticket_id}`);
-    }
-    return;
-  }
-  // Generic fallback — should not be reached for current ADR schema.
-  for (const item of v) out.push(`  - ${JSON.stringify(item)}`);
-}
 
 export function serializeAdr(parsed: ParsedAdr): string {
-  const fm = parsed.frontmatter;
-  const out: string[] = ["---"];
-  const seen = new Set<string>();
+  // Delegates to frontmatter.serialize — one YAML core, one set of escaping
+  // rules. This used to be a second hand-rolled serializer with its own quoting
+  // and its own emitObjectList, which meant ADRs were parsed by one set of rules
+  // and written by another; every escaping bug had to be fixed twice, and the
+  // two halves had already drifted.
+  //
+  // ADR_KEY_ORDER only shapes files we create from scratch; an existing ADR
+  // keeps whatever order and comments it already had.
+  const fm = parsed.frontmatter as Record<string, unknown>;
+  const ordered: Record<string, unknown> = {};
+  for (const k of ADR_KEY_ORDER) if (k in fm && fm[k] !== undefined) ordered[k] = fm[k];
+  for (const k of Object.keys(fm)) if (!(k in ordered) && fm[k] !== undefined) ordered[k] = fm[k];
 
-  const emit = (k: string): void => {
-    if (!(k in fm)) return;
-    const v = (fm as Record<string, unknown>)[k];
-    if (v === undefined) return;
-    seen.add(k);
-    if (v === null) {
-      out.push(`${k}: null`);
-      return;
-    }
-    if (k === "proposed_tickets" || k === "materialized_tickets") {
-      emitObjectList(out, k, v);
-      return;
-    }
-    if (Array.isArray(v)) {
-      if (v.length === 0) {
-        out.push(`${k}: []`);
-      } else if (ADR_BLOCK_SCALAR_LIST_KEYS.has(k)) {
-        out.push(`${k}:`);
-        for (const item of v) out.push(`  - ${item}`);
-      } else {
-        // Inline flow for any other scalar list.
-        out.push(`${k}: [${(v as unknown[]).map(String).join(", ")}]`);
-      }
-      return;
-    }
-    if (ADR_QUOTED_KEYS.has(k)) {
-      out.push(`${k}: "${String(v).replace(/"/g, '\\"')}"`);
-    } else {
-      out.push(`${k}: ${v}`);
-    }
-  };
-
-  for (const k of ADR_KEY_ORDER) emit(k);
-  for (const k of Object.keys(fm)) if (!seen.has(k)) emit(k);
-
-  out.push("---");
-  const bodyTrimmed = parsed.body.replace(/^\s+/, "");
-  return out.join("\n") + "\n\n" + bodyTrimmed;
+  return serializeFm(ordered as Frontmatter, parsed.body, {
+    frontmatter: ordered as Frontmatter,
+    body: parsed.body,
+    _doc: parsed._doc,
+  } as ParsedFile);
 }
 
 // ---------------------------------------------------------------------------

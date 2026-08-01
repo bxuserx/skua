@@ -694,11 +694,65 @@ function applySavedPositions(kind) {
   if (applied) cy.fit(undefined, 24);
 }
 
+// A cache hit returns in milliseconds, but `rebuild=1` re-runs the builder
+// inline in the request — dataflow/schemas walk the whole source tree, which
+// can take tens of seconds. Show the label immediately and start ticking an
+// elapsed counter only after a delay longer than any cache hit: fast loads look
+// exactly as they did, and a slow one visibly proves it is still running rather
+// than sitting on a frozen "loading…" that reads identically to a hang.
+const BUSY_TIMER_AFTER_MS = 1000;
+
+function startBusy(label) {
+  const info = $("#info");
+  const btn = $("#rebuild");
+  const started = performance.now();
+  info.textContent = label;
+  info.dataset.busy = "1";
+  delete info.dataset.error;
+  // Disabled so a slow rebuild can't be stacked — each click would otherwise
+  // fire another full-tree walk against the same single-threaded server.
+  btn.disabled = true;
+  const tick = setInterval(() => {
+    const elapsed = performance.now() - started;
+    if (elapsed < BUSY_TIMER_AFTER_MS) return;
+    info.textContent = `${label} ${Math.round(elapsed / 1000)}s`;
+  }, 250);
+  return () => {
+    clearInterval(tick);
+    delete info.dataset.busy;
+    btn.disabled = false;
+  };
+}
+
+async function fetchGraph(url) {
+  const res = await fetch(url);
+  // A failed build comes back as `{ error }` with a 4xx/5xx; anything that
+  // isn't JSON at all (proxy error page, dropped connection) must not surface
+  // as an opaque SyntaxError.
+  const body = await res.json().catch(() => null);
+  if (!res.ok) {
+    throw new Error(body?.error ?? `${res.status} ${res.statusText || "request failed"}`);
+  }
+  if (!body || typeof body !== "object") throw new Error("malformed graph response");
+  return body;
+}
+
+// Monotonic token: a rebuild started while an earlier load is still in flight
+// must win, whichever order the responses land in.
+let loadToken = 0;
+
 async function load(rebuild = false) {
   const kind = currentKind();
-  $("#info").textContent = "loading…";
+  const token = ++loadToken;
   const url = `/api/graphs/${kind}${rebuild ? "?rebuild=1" : ""}`;
-  const data = await fetch(url).then((r) => r.json());
+  const stopBusy = startBusy(rebuild ? `rebuilding ${kind}…` : "loading…");
+  let data;
+  try {
+    data = await fetchGraph(url);
+  } finally {
+    stopBusy();
+  }
+  if (token !== loadToken) return; // superseded — don't clobber the newer render
   if (cy) cy.destroy();
   // Schemas is a CARD view (not a graph): one expandable card per table showing
   // its columns, DB-agnostic. Render cards and skip the cytoscape path entirely.
@@ -768,6 +822,19 @@ async function load(rebuild = false) {
     applySavedPositions(kind);
     cy.on("free", "node", () => saveCurrentPositions(kind));
   }
+}
+
+// Every caller goes through here: an unhandled rejection out of load() would
+// leave the busy label frozen on screen with the reason only in devtools.
+function loadReportingErrors(rebuild = false) {
+  return load(rebuild).catch((e) => {
+    const info = $("#info");
+    info.textContent = `error: ${e.message}`;
+    info.dataset.error = "1";
+    // The stale line belongs to whatever loaded last; clearing it stops
+    // clearFocus() from restoring it over the error.
+    delete info.dataset.fullLine;
+  });
 }
 
 // ── Schemas CARD view ───────────────────────────────────────────────────────
@@ -1349,7 +1416,7 @@ $("#filter").addEventListener("input", () => {
   clearFocusClasses();
   applyTextFilter();
 });
-$("#rebuild").addEventListener("click", () => load(true));
+$("#rebuild").addEventListener("click", () => loadReportingErrors(true));
 $("#reset-layout").addEventListener("click", () => {
   // Drop the saved arrangement for this kind and snap back to auto-layout.
   try {
@@ -1450,6 +1517,4 @@ const GRAPH_TITLES = {
 }
 
 document.title = `skua graphs · ${currentKind()}`;
-load(false).catch((e) => {
-  $("#info").textContent = "error: " + e.message;
-});
+loadReportingErrors(false);

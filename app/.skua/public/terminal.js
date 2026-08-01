@@ -31,10 +31,6 @@ const errEl = document.getElementById("term-bar-error");
 const collapseBtn = document.getElementById("term-collapse");
 const resizer = document.getElementById("term-resizer");
 const schemeSelect = document.getElementById("term-scheme");
-const tipsBtn = document.getElementById("term-tips");
-const tipsModal = document.getElementById("term-tips-modal");
-const claudeTipsBtn = document.getElementById("term-claude-tips");
-const claudeTipsModal = document.getElementById("term-claude-tips-modal");
 const utilsToggle = document.getElementById("term-utils-toggle");
 const utilsPanel = document.getElementById("term-utils");
 
@@ -169,8 +165,10 @@ function ensureFrame(tab) {
             f.src = `/search.html?id=${encodeURIComponent(tab.id)}`;
         } else {
             // skua's own xterm client (not ttyd's bundled page) so we can remap
-            // keys; it's same-origin and connects a WebSocket to the ttyd port.
-            f.src = `/terminal-xterm.html?port=${encodeURIComponent(tab.port)}`;
+            // keys. It connects its WebSocket back to THIS origin, which proxies
+            // to the session's ttyd over a unix socket — the session id is all
+            // it needs, and there is no port to go stale on a respawn.
+            f.src = `/terminal-xterm.html?id=${encodeURIComponent(tab.id)}`;
         }
         f.title = tab.title;
         f.hidden = true;
@@ -1179,11 +1177,24 @@ function wireSchemePicker() {
     const entries = Object.entries(window.SKUA_TERM_SCHEMES).sort((a, b) =>
         a[1].label.localeCompare(b[1].label),
     );
-    for (const [id, { label }] of entries) {
-        const opt = document.createElement("option");
-        opt.value = id;
-        opt.textContent = label;
-        schemeSelect.appendChild(opt);
+    // Split into Dark / Light with real <optgroup>s rather than a disabled
+    // "──────" option: the browser renders the group label natively, it can't be
+    // selected by accident, and screen readers announce the grouping.
+    const groups = [
+        ["Dark", entries.filter(([, s]) => !s.light)],
+        ["Light", entries.filter(([, s]) => s.light)],
+    ];
+    for (const [groupLabel, groupEntries] of groups) {
+        if (!groupEntries.length) continue;
+        const group = document.createElement("optgroup");
+        group.label = groupLabel;
+        for (const [id, { label }] of groupEntries) {
+            const opt = document.createElement("option");
+            opt.value = id;
+            opt.textContent = label;
+            group.appendChild(opt);
+        }
+        schemeSelect.appendChild(group);
     }
 
     let saved = null;
@@ -1208,20 +1219,8 @@ newBtn.addEventListener("click", () => createSession(cwdInput.value.trim()));
 if (searchNewBtn) searchNewBtn.addEventListener("click", newSearchTab);
 
 // ── tips modals (vim + claude) ─────────────────────────────────────────────────
-function wireTipsModal(btn, modal) {
-    if (!btn || !modal) return;
-    btn.addEventListener("click", () => {
-        modal.hidden = false;
-    });
-    modal.addEventListener("click", (e) => {
-        if (e.target.matches("[data-modal-close]")) modal.hidden = true;
-    });
-    document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape" && !modal.hidden) modal.hidden = true;
-    });
-}
-wireTipsModal(tipsBtn, tipsModal);
-wireTipsModal(claudeTipsBtn, claudeTipsModal);
+// The Neovim / Terminal / Claude quick references moved into the shared help
+// (?) modal in the navbar; components/howto.js owns their wiring now.
 
 cwdForm.addEventListener("submit", (e) => {
     e.preventDefault();

@@ -42,7 +42,9 @@ import {
   type AdrState,
   type ParsedAdr,
 } from "./lib/adrs.ts";
-import { listSessions, createSession, killSession, readLive, readLastCommand, renameSession, reorderSessions, killAllSessions } from "./lib/terminals.ts";
+import { listSessions, createSession, killSession, readLive, readLastCommand, renameSession, reorderSessions, killAllSessions, getSession, shutdownTtyds } from "./lib/terminals.ts";
+import { FrameDecoder, encodeFrame, OP_TEXT, OP_BIN, OP_CLOSE, type Frame } from "./lib/wsframe.ts";
+import type { ServerWebSocket } from "bun";
 import { runSearch, SEARCH_ROOT } from "./lib/search.ts";
 import { activeRuns } from "./lib/chaos.ts";
 import { syncBoardSafe } from "./lib/firestore.ts";
@@ -86,24 +88,23 @@ const HTML_HEADERS = {
   ...NOSNIFF,
 };
 
-// terminal.html frames the terminal surface in an <iframe>. That surface is now
-// skua's own xterm.js client (terminal-xterm.html), served same-origin, so this
-// variant just needs `frame-src 'self'`. The localhost ports stay allowed too
-// (harmless; keeps direct-ttyd framing working as a fallback). Scoped to
-// terminal.html only (see serveStatic).
+// terminal.html frames the terminal surface in an <iframe>. That surface is
+// skua's own xterm.js client (terminal-xterm.html), served same-origin, so
+// `frame-src 'self'` is all it needs. The localhost-port allowance that used to
+// sit here is gone: ttyd no longer listens on a port to frame.
 const TERMINAL_HTML_HEADERS = {
-  "content-security-policy":
-    CSP + "; frame-src 'self' http://127.0.0.1:* http://localhost:*",
+  "content-security-policy": CSP + "; frame-src 'self'",
   "referrer-policy": "no-referrer",
   ...NOSNIFF,
 };
 
-// The framed client (terminal-xterm.html) opens a WebSocket straight to the
-// session's ttyd port — a different localhost origin — and is itself framed by
-// terminal.html. The default `default-src 'self'` would block both, so this
-// variant widens connect-src to any localhost ws:// and allows same-origin
-// framing. Built fresh (not appended to CSP) because a second `frame-ancestors`
-// directive is ignored — the base CSP already pins it to 'none'.
+// The framed client (terminal-xterm.html) now opens its WebSocket back to THIS
+// origin (/api/terminals/:id/ws), which proxies to the session's ttyd over a
+// unix socket. connect-src is therefore plain 'self' — the previous
+// `ws://127.0.0.1:* ws://localhost:*` allowance existed only because the client
+// dialled the ttyd port directly, which is precisely the surface a web page
+// could also reach. Built fresh (not appended to CSP) because a second
+// `frame-ancestors` directive is ignored — the base CSP pins it to 'none'.
 const TERMINAL_XTERM_HTML_HEADERS = {
   "content-security-policy": [
     "default-src 'self'",
@@ -112,7 +113,7 @@ const TERMINAL_XTERM_HTML_HEADERS = {
     "img-src 'self' data:",
     "object-src 'none'",
     "base-uri 'self'",
-    "connect-src 'self' ws://127.0.0.1:* ws://localhost:*",
+    "connect-src 'self'",
     "frame-ancestors 'self'",
   ].join("; "),
   "referrer-policy": "no-referrer",
@@ -126,6 +127,116 @@ const json = (data: unknown, status = 200) =>
   });
 
 const err = (msg: string, status = 400) => json({ error: msg }, status);
+
+// ── cross-origin guard ───────────────────────────────────────────────────────
+// The dashboard binds loopback and has no auth, which is NOT the same as being
+// unreachable: any page the user browses can issue requests to 127.0.0.1. This
+// is the one place every request passes exactly once (the dispatcher below is a
+// flat if-chain; serveOptions has no `routes`/`static`/`error` bypass).
+//
+// Populated AFTER Bun.serve returns, because the bind loop walks the port on
+// EADDRINUSE. Deriving it from the configured PORT would make any walked-to
+// instance reject its own dashboard's writes — a silent, total 403 that only
+// reproduces when a second skua is running. All three loopback spellings are
+// allowed: scripts/fork.ts prints "http://localhost:<port>" to the user.
+let ALLOWED_ORIGINS = new Set<string>();
+function setAllowedOrigins(port: number): void {
+  ALLOWED_ORIGINS = new Set(
+    ["127.0.0.1", "localhost", "[::1]"].map((h) => `http://${h}:${port}`),
+  );
+}
+
+/** A Response to return when the request is cross-origin, else null. */
+function crossOriginBlock(req: Request): Response | null {
+  const origin = req.headers.get("origin");
+  const site = req.headers.get("sec-fetch-site");
+
+  // A cross-origin request that carries an Origin we don't recognise is refused
+  // outright, whatever the method. This is what actually guards the terminal
+  // WebSocket: WS upgrades are exempt from CORS, browsers do NOT send
+  // Sec-Fetch-Site on them, but they DO always send Origin — so without this a
+  // foreign page could upgrade and drive the shell. (Verified: it could.)
+  if (origin !== null && !ALLOWED_ORIGINS.has(origin)) {
+    return err("cross-origin request refused", 403);
+  }
+
+  if (req.method === "GET" || req.method === "HEAD") {
+    // Origin is not sent on same-origin GETs, so it cannot guard these. Four GET
+    // routes mutate state (/api/buckets archives tickets, /api/graphs/* writes
+    // cache, /api/terminals prunes records, /api/search spawns subprocesses), so
+    // a bare <img src=…> is a real trigger. Sec-Fetch-Site is sent by Chrome and
+    // Firefox on every request including <img>.
+    //
+    // Residual risk, stated rather than hidden: Safari only sends this header
+    // from 16.4. Older Safari sends nothing, `null` is allowed (curl, address
+    // bar), and this check degrades to a no-op there.
+    //
+    // `same-site` is rejected too: it ignores port, so a second skua on :5175
+    // counts as same-site to :5174 — rejecting it is what isolates instances.
+    if (site === "cross-site" || site === "same-site") {
+      return err("cross-origin request refused", 403);
+    }
+    return null;
+  }
+
+  // Non-GET. A browser always sends Origin on these, so a missing Origin means a
+  // non-browser client (curl, scripts/fork.ts — the only in-repo HTTP caller).
+  // Allowing that keeps the CLI surface working; a web page cannot suppress it.
+  if (origin === null) {
+    // …but if it IS a browser (Sec-Fetch-Site present) with no Origin, refuse.
+    if (site && site !== "same-origin" && site !== "none") {
+      return err("cross-origin request refused", 403);
+    }
+    return null;
+  }
+  if (!ALLOWED_ORIGINS.has(origin)) {
+    return err("cross-origin request refused", 403);
+  }
+  return null;
+}
+
+// Request bodies are capped. Without this a single POST can write an arbitrarily
+// large ticket, which listBucket then re-reads in full on every 5s board poll.
+const MAX_BODY_BYTES = 1_000_000;
+
+/** Read+parse a JSON request body.
+ *
+ *  Returns the parsed value, or a `Response` to return as-is — callers must
+ *  check with `instanceof Response` before using the result.
+ *
+ *  Requiring `application/json` is load-bearing, not cosmetic: a cross-origin
+ *  POST sent as `text/plain` is a CORS "simple request" and skips preflight
+ *  entirely, so without this check any web page can drive the mutating API.
+ *  An empty body parses to `{}` — several routes treat it as "no options". */
+async function readJson<T = Record<string, unknown>>(req: Request): Promise<T | Response> {
+  const ctype = (req.headers.get("content-type") ?? "").toLowerCase();
+  if (!ctype.includes("application/json")) {
+    return err("expected content-type: application/json", 415);
+  }
+
+  const declared = Number(req.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > MAX_BODY_BYTES) {
+    return err(`request body too large (max ${MAX_BODY_BYTES} bytes)`, 413);
+  }
+
+  let text: string;
+  try {
+    text = await req.text();
+  } catch {
+    return err("could not read request body");
+  }
+  // Content-Length can be absent (chunked) or lie; check what actually arrived.
+  if (text.length > MAX_BODY_BYTES) {
+    return err(`request body too large (max ${MAX_BODY_BYTES} bytes)`, 413);
+  }
+  if (!text.trim()) return {} as T;
+
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return err("invalid JSON body");
+  }
+}
 
 const NAV_ITEMS: ReadonlyArray<{ key: string; href: string; label: string }> = [
   { key: "terminal", href: "/terminal", label: ">_" },
@@ -390,11 +501,174 @@ async function readCachedOrBuild(
   return graph;
 }
 
+// ── terminal WebSocket proxy ─────────────────────────────────────────────────
+// The browser connects same-origin to /api/terminals/:id/ws; we relay frames to
+// that session's ttyd over its unix socket. Bun's WebSocket *client* cannot dial
+// a unix socket, so the upstream leg is a raw Bun.connect() plus the RFC6455
+// codec in lib/wsframe.ts.
+//
+// This is what makes the terminal reachable at all now that ttyd has no TCP
+// port — and it is the reason it is safe: the socket has no browser-reachable
+// surface, and this route sits behind the same origin guard as everything else.
+type TermSocketData = { id: string; up?: UpstreamConn };
+
+type UpstreamConn = {
+  send(data: Uint8Array): void;
+  close(): void;
+};
+
+async function dialTtyd(
+  socketPath: string,
+  onFrame: (f: Frame) => void,
+  onClose: () => void,
+): Promise<UpstreamConn> {
+  const decoder = new FrameDecoder();
+  let upgraded = false;
+  let handshake = new Uint8Array(0);
+
+  const sock = await Bun.connect({
+    unix: socketPath,
+    socket: {
+      data(_s, chunk) {
+        if (upgraded) {
+          for (const f of decoder.push(chunk)) onFrame(f);
+          return;
+        }
+        // Still reading ttyd's 101 response; the first frames can share the chunk.
+        const merged = new Uint8Array(handshake.length + chunk.length);
+        merged.set(handshake);
+        merged.set(chunk, handshake.length);
+        handshake = merged;
+        const end = new TextDecoder().decode(handshake).indexOf("\r\n\r\n");
+        if (end < 0) return;
+        if (!/^HTTP\/1\.1 101/.test(new TextDecoder().decode(handshake.subarray(0, 20)))) {
+          onClose();
+          return;
+        }
+        upgraded = true;
+        const rest = handshake.subarray(end + 4);
+        handshake = new Uint8Array(0);
+        if (rest.length) for (const f of decoder.push(rest)) onFrame(f);
+      },
+      close: onClose,
+      error: onClose,
+    },
+  });
+
+  const key = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))));
+  sock.write(
+    "GET /ws HTTP/1.1\r\nHost: localhost\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n" +
+      `Sec-WebSocket-Version: 13\r\nSec-WebSocket-Key: ${key}\r\n` +
+      "Sec-WebSocket-Protocol: tty\r\n\r\n",
+  );
+
+  return {
+    send: (data) => sock.write(encodeFrame(OP_TEXT, data)),
+    close: () => { try { sock.end(); } catch { /* already gone */ } },
+  };
+}
+
+// ── upstream pooling ─────────────────────────────────────────────────────────
+// ONE ttyd connection per terminal, shared by every browser client attached to
+// it, held open briefly after the last one leaves.
+//
+// This is not an optimisation — it is the containment for a ttyd defect. ttyd
+// leaks a pty handle on every client connection and never releases it, and
+// macOS caps concurrent ptys at kern.tty.ptmx_max (511) SYSTEM-WIDE, not per
+// project. Measured here: a fresh ttyd went 0 → 27 handles over 30 connect/
+// disconnect cycles, ~1 per connection. Dialing per browser connection meant a
+// reconnecting tab burned the machine's pty pool, and once it was gone EVERY
+// terminal in EVERY project went blank — ttyd could no longer spawn a pty, so
+// it accepted the socket and closed it with zero output frames.
+//
+// Pooling makes browser reconnects free: they attach to the existing upstream
+// instead of opening a new one, so N reconnects cost one handle rather than N.
+// The linger window means even a full page reload usually reuses the same one.
+const UPSTREAM_LINGER_MS = 15_000;
+
+type Upstream = {
+  conn: UpstreamConn;
+  clients: Set<ServerWebSocket<TermSocketData>>;
+  idleTimer?: ReturnType<typeof setTimeout>;
+};
+
+const upstreams = new Map<string, Upstream>();
+
+function closeUpstream(id: string): void {
+  const up = upstreams.get(id);
+  if (!up) return;
+  if (up.idleTimer) clearTimeout(up.idleTimer);
+  upstreams.delete(id);
+  up.conn.close();
+  for (const c of up.clients) { try { c.close(); } catch { /* already gone */ } }
+}
+
+async function attachClient(ws: ServerWebSocket<TermSocketData>): Promise<void> {
+  const id = ws.data.id;
+  let up = upstreams.get(id);
+
+  if (up) {
+    // Reuse: cancel the pending teardown and join the existing stream.
+    if (up.idleTimer) { clearTimeout(up.idleTimer); up.idleTimer = undefined; }
+    up.clients.add(ws);
+    return;
+  }
+
+  const rec = await getSession(id);
+  if (!rec?.socket) { ws.close(1011, "terminal not found"); return; }
+
+  const clients = new Set<ServerWebSocket<TermSocketData>>([ws]);
+  const conn = await dialTtyd(
+    rec.socket,
+    (f) => {
+      // ttyd output is forwarded verbatim so each client's decoder sees exactly
+      // what ttyd emitted. Fanned out: a second dashboard tab mirrors the first.
+      if (f.opcode === OP_TEXT || f.opcode === OP_BIN) {
+        for (const c of clients) { try { c.send(f.payload); } catch { /* dropped */ } }
+      } else if (f.opcode === OP_CLOSE) {
+        closeUpstream(id);
+      }
+    },
+    () => closeUpstream(id),
+  );
+  upstreams.set(id, { conn, clients });
+}
+
+function detachClient(ws: ServerWebSocket<TermSocketData>): void {
+  const id = ws.data.id;
+  const up = upstreams.get(id);
+  if (!up) return;
+  up.clients.delete(ws);
+  if (up.clients.size > 0) return;
+
+  // Last client gone: linger rather than tearing down, so a reload or a
+  // reconnect storm re-attaches to this upstream instead of costing a new
+  // pty handle each time.
+  up.idleTimer = setTimeout(() => {
+    const still = upstreams.get(id);
+    if (still && still.clients.size === 0) closeUpstream(id);
+  }, UPSTREAM_LINGER_MS);
+}
+
 const serveOptions = {
   hostname: "127.0.0.1",
-  async fetch(req: Request) {
+  async fetch(req: Request, srv: { upgrade(r: Request, o: { data: TermSocketData }): boolean }) {
     const url = new URL(req.url);
     const { pathname } = url;
+
+    const blocked = crossOriginBlock(req);
+    if (blocked) return blocked;
+
+    // Terminal WebSocket upgrade. Same-origin only — crossOriginBlock above has
+    // already run, and a WS upgrade is a GET so it is covered by the
+    // Sec-Fetch-Site arm of that check.
+    const wsMatch = pathname.match(/^\/api\/terminals\/(term-[a-z0-9]+)\/ws$/);
+    if (wsMatch) {
+      const rec = await getSession(wsMatch[1]);
+      if (!rec) return err("terminal not found", 404);
+      if (srv.upgrade(req, { data: { id: rec.id } })) return undefined as unknown as Response;
+      return err("websocket upgrade failed", 400);
+    }
 
     // Routes
     if (pathname === "/") return serveStatic("index.html");
@@ -416,10 +690,14 @@ const serveOptions = {
 
     // API
     if (pathname === "/api/buckets" && req.method === "GET") {
-      await archiveStaleComplete();
-      // Mirror the current board to Firestore if enabled — fire-and-forget and
-      // self-throttled (≤ once / 10s) so the poll never blocks on the network, and
-      // interactive raw-`mv` moves converge even with no chaos loop running.
+      // archiveStaleComplete() used to run here. It MOVES TICKET FILES between
+      // bucket directories, which a GET must not do — a plain <img src> was
+      // enough to trigger it. It now runs on a timer (see startArchiveTimer).
+      //
+      // syncBoardSafe stays: it is an outbound, idempotent, self-throttled
+      // (≤1/10s) mirror rather than a local mutation, and it exists precisely so
+      // interactive raw-`mv` moves converge within seconds. Putting it on the
+      // hourly timer would silently degrade that documented property to 1h.
       void syncBoardSafe({ minIntervalMs: 10_000 });
       const visible = BUCKETS.filter((b) => b !== "7-archive");
       const out: Record<string, unknown> = {};
@@ -439,12 +717,8 @@ const serveOptions = {
     }
 
     if (pathname === "/api/tickets" && req.method === "POST") {
-      let payload: Record<string, unknown>;
-      try {
-        payload = (await req.json()) as Record<string, unknown>;
-      } catch {
-        return err("invalid JSON body");
-      }
+      const payload = await readJson(req);
+      if (payload instanceof Response) return payload;
       const title =
         typeof payload.title === "string" ? payload.title.trim() : "";
       if (!title) return err("title is required");
@@ -514,10 +788,9 @@ const serveOptions = {
           return t ? json(t) : err("not found", 404);
         }
         if (req.method === "PUT") {
-          const { frontmatter, body } = (await req.json()) as {
-            frontmatter?: Frontmatter;
-            body?: string;
-          };
+          const parsed = await readJson<{ frontmatter?: Frontmatter; body?: string }>(req);
+          if (parsed instanceof Response) return parsed;
+          const { frontmatter, body } = parsed;
           if (!frontmatter || typeof body !== "string")
             return err("expected {frontmatter, body}");
           await writeTicket(id, frontmatter, body);
@@ -536,11 +809,19 @@ const serveOptions = {
     const moveMatch = pathname.match(/^\/api\/tickets\/(TKT-\d+)\/move$/);
     if (moveMatch && req.method === "POST") {
       const id = moveMatch[1];
-      const { to } = (await req.json()) as { to?: unknown };
+      const parsed = await readJson<{ to?: unknown }>(req);
+      if (parsed instanceof Response) return parsed;
+      const { to } = parsed;
       if (typeof to !== "string" || !BUCKETS.includes(to as Bucket))
         return err(`invalid bucket: ${String(to)}`);
-      const result = await moveTicket(id, to as Bucket);
-      return json(result);
+      // This route had no try/catch at all: any throw from moveTicket escaped the
+      // handler and Bun returned an HTML error page, which app.js then alert()s
+      // in full. Every other route returns the {error} shape.
+      try {
+        return json(await moveTicket(id, to as Bucket));
+      } catch (e) {
+        return err(e instanceof Error ? e.message : String(e), 500);
+      }
     }
 
     const graphMatch = pathname.match(
@@ -550,7 +831,16 @@ const serveOptions = {
       const kind = graphMatch[1] as GraphKind;
       const rebuild = url.searchParams.get("rebuild") === "1";
       const live = url.searchParams.get("live") === "1";
-      return json(await readCachedOrBuild(kind, rebuild, live));
+      // A builder throwing must come back as JSON like every other route. Bun
+      // has no `error` hook here, so an uncaught throw would surface as a
+      // non-JSON 500 that the client's `r.json()` chokes on — leaving the page
+      // stuck on "loading…" with the real cause only in the server log.
+      try {
+        return json(await readCachedOrBuild(kind, rebuild, live));
+      } catch (e) {
+        console.error(`skua: ${kind}-graph build failed —`, e);
+        return err(e instanceof Error ? e.message : String(e), 500);
+      }
     }
 
     // -----------------------------------------------------------------------
@@ -564,12 +854,8 @@ const serveOptions = {
     }
 
     if (pathname === "/api/adrs" && req.method === "POST") {
-      let payload: Record<string, unknown>;
-      try {
-        payload = (await req.json()) as Record<string, unknown>;
-      } catch {
-        return err("invalid JSON body");
-      }
+      const payload = await readJson(req);
+      if (payload instanceof Response) return payload;
       const title =
         typeof payload.title === "string" ? payload.title.trim() : "";
       if (!title) return err("title is required");
@@ -701,7 +987,8 @@ const serveOptions = {
           return a ? json(a) : err("not found", 404);
         }
         if (req.method === "PUT") {
-          const body = await req.json();
+          const body = await readJson(req);
+          if (body instanceof Response) return body;
           if (!body || typeof body !== "object")
             return err("expected {frontmatter, body}");
           const fm = (body as { frontmatter?: unknown }).frontmatter;
@@ -773,7 +1060,8 @@ const serveOptions = {
           return json({ comments: await readComments(id) });
         }
         if (req.method === "POST") {
-          const payload = (await req.json()) as Record<string, unknown>;
+          const payload = await readJson(req);
+          if (payload instanceof Response) return payload;
           const author =
             typeof payload.author === "string" ? payload.author.trim() : "";
           const text =
@@ -797,7 +1085,8 @@ const serveOptions = {
           return json({ references: await listReferences(id) });
         }
         if (req.method === "POST") {
-          const payload = (await req.json()) as Record<string, unknown>;
+          const payload = await readJson(req);
+          if (payload instanceof Response) return payload;
           const filename =
             typeof payload.filename === "string" ? payload.filename.trim() : "";
           const content =
@@ -832,7 +1121,8 @@ const serveOptions = {
     if (adrTransitionMatch && req.method === "POST") {
       const id = adrTransitionMatch[1];
       try {
-        const payload = await req.json();
+        const payload = await readJson(req);
+        if (payload instanceof Response) return payload;
         const to = (payload as { to?: unknown }).to;
         const deciders = (payload as { deciders?: unknown }).deciders;
         if (typeof to !== "string" || !ADR_STATES.includes(to as AdrState)) {
@@ -1009,12 +1299,9 @@ const serveOptions = {
       return json(enriched);
     }
     if (pathname === "/api/terminals" && req.method === "POST") {
-      let payload: Record<string, unknown> = {};
-      try {
-        payload = (await req.json()) as Record<string, unknown>;
-      } catch {
-        /* empty body is ok */
-      }
+      // An empty body is fine here (readJson yields {}) — it means "defaults".
+      const payload = await readJson(req);
+      if (payload instanceof Response) return payload;
       const cwd = typeof payload.cwd === "string" ? payload.cwd : undefined;
       const title =
         typeof payload.title === "string" ? payload.title : undefined;
@@ -1059,12 +1346,8 @@ const serveOptions = {
     // in the new top-to-bottom order. Checked before the /:id routes below (the
     // id regex requires a `term-` prefix, so "reorder" can't collide either way).
     if (pathname === "/api/terminals/reorder" && req.method === "POST") {
-      let payload: Record<string, unknown> = {};
-      try {
-        payload = (await req.json()) as Record<string, unknown>;
-      } catch {
-        /* fall through to the empty-ids guard */
-      }
+      const payload = await readJson(req);
+      if (payload instanceof Response) return payload;
       const ids = Array.isArray(payload.ids)
         ? (payload.ids.filter((x) => typeof x === "string") as string[])
         : null;
@@ -1077,12 +1360,9 @@ const serveOptions = {
       return json(await killSession(termIdMatch[1]));
     }
     if (termIdMatch && (req.method === "PATCH" || req.method === "PUT")) {
-      let payload: Record<string, unknown> = {};
-      try {
-        payload = (await req.json()) as Record<string, unknown>;
-      } catch {
-        /* empty body → clears the custom name */
-      }
+      // An empty body clears the custom name (readJson yields {} → title "").
+      const payload = await readJson(req);
+      if (payload instanceof Response) return payload;
       const title = typeof payload.title === "string" ? payload.title : "";
       const r = await renameSession(termIdMatch[1], title);
       if (!r) return err("terminal not found", 404);
@@ -1123,6 +1403,30 @@ const serveOptions = {
     }
 
     return new Response("not found", { status: 404 });
+  },
+
+  websocket: {
+    // ttyd streams a full screen repaint on attach; the default 16MB backpressure
+    // limit is ample, but bump the max message so a big paste isn't truncated.
+    maxPayloadLength: 16 * 1024 * 1024,
+
+    async open(ws: ServerWebSocket<TermSocketData>) {
+      try {
+        await attachClient(ws);
+      } catch (e) {
+        console.warn(`skua: terminal ${ws.data.id} upstream dial failed — ${String(e)}`);
+        ws.close(1011, "upstream unavailable");
+      }
+    },
+
+    message(ws: ServerWebSocket<TermSocketData>, msg: string | Uint8Array) {
+      const bytes = typeof msg === "string" ? new TextEncoder().encode(msg) : msg;
+      upstreams.get(ws.data.id)?.conn.send(bytes);
+    },
+
+    close(ws: ServerWebSocket<TermSocketData>) {
+      detachClient(ws);
+    },
   },
 };
 
@@ -1165,6 +1469,71 @@ if (!server) {
 // the `/fork` script reach THIS dashboard, not a same-config skua from another
 // repo on the base port.
 process.env.SKUA_PORT = String(server.port);
+
+// Must use the BOUND port, not PORT — see setAllowedOrigins. Bun types `port` as
+// optional on one overload though it is always set on a bound server; fall back
+// to the configured PORT rather than building an allowlist of "http://host:undefined".
+setAllowedOrigins(server.port ?? PORT);
+
+// Auto-archive runs on a timer rather than on the board poll, so a GET never
+// moves files on disk. The threshold is 7 days (ARCHIVE_THRESHOLD_DAYS), so a
+// 10-minute cadence is far finer than the decision it drives.
+//
+// Guarded on globalThis because `bun --hot` re-evaluates module top level on
+// every save: without this, each reload during development stacks another timer
+// and the interval count grows without bound.
+const ARCHIVE_INTERVAL_MS = 10 * 60_000;
+declare global {
+  var __skuaArchiveTimer: ReturnType<typeof setInterval> | undefined;
+}
+function startArchiveTimer(): void {
+  if (globalThis.__skuaArchiveTimer) clearInterval(globalThis.__skuaArchiveTimer);
+  const sweep = () =>
+    archiveStaleComplete().catch((e) =>
+      console.warn(`skua: auto-archive failed — ${e instanceof Error ? e.message : String(e)}`),
+    );
+  void sweep();
+  globalThis.__skuaArchiveTimer = setInterval(sweep, ARCHIVE_INTERVAL_MS);
+  // Don't hold the process open on this alone.
+  globalThis.__skuaArchiveTimer.unref?.();
+}
+startArchiveTimer();
+
+// ── shutdown: take the ttyds down with us ────────────────────────────────────
+// A dashboard that just exits leaves every ttyd it spawned reparented to pid 1,
+// still listening, forever — and holding its unreaped `zellij attach` children,
+// which only the parent can ever reap. That is not hypothetical: nine writable
+// ttyds from long-dead dashboards were found still accepting connections, the
+// oldest two weeks old, between them holding ~130 undead zellij clients.
+//
+// The zellij sessions are deliberately left alone. They are daemons holding the
+// real shells, and reconcile() respawns ttyd against the survivors at next
+// boot, so this costs nothing but the browser-facing endpoint.
+//
+// Registered once per process, not once per `bun --hot` reload — the guard is
+// the same globalThis pattern as __skuaArchiveTimer above, and without it every
+// save would stack another handler until Node warns about the listener limit.
+declare global {
+  var __skuaShutdownHooked: boolean | undefined;
+}
+if (!globalThis.__skuaShutdownHooked) {
+  globalThis.__skuaShutdownHooked = true;
+  let shuttingDown = false;
+  const shutdown = (sig: NodeJS.Signals) => {
+    if (shuttingDown) return; // a second Ctrl-C must not re-enter mid-kill
+    shuttingDown = true;
+    const n = shutdownTtyds();
+    if (n) console.log(`\nskua: ${sig} — closed ${n} terminal endpoint${n === 1 ? "" : "s"} (shells kept alive)`);
+    // Re-raise as the default action so the exit code reports the signal
+    // honestly instead of a synthetic 0.
+    process.off(sig, shutdown);
+    process.kill(process.pid, sig);
+  };
+  for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"] as const) process.on(sig, shutdown);
+  // Covers `process.exit()` and a normal event-loop drain, which no signal
+  // handler sees. Must stay synchronous — nothing async runs during exit.
+  process.on("exit", () => { shutdownTtyds(); });
+}
 
 if (server.port !== PORT) {
   console.warn(

@@ -54,6 +54,38 @@
     min-height: 22px;
 }
 
+/* A `rebuild` re-runs the graph builder inline and can take tens of seconds;
+   the pulse plus the elapsed counter graphs.js ticks in distinguish "still
+   working" from a hung request. */
+.graph-stats[data-busy] {
+    animation: graph-busy-pulse 1.4s ease-in-out infinite;
+}
+
+.graph-stats[data-error] {
+    color: var(--red);
+}
+
+@keyframes graph-busy-pulse {
+    0%,
+    100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.45;
+    }
+}
+
+.toolbar #rebuild:disabled {
+    opacity: 0.55;
+    cursor: progress;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .graph-stats[data-busy] {
+        animation: none;
+    }
+}
+
 /* ── Graph legend ─────────────────────────────────────────────────────── */
 .legend {
     /* Anchored to the bottom-right of the viewport so it never collides with the

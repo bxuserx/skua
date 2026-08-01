@@ -178,15 +178,15 @@ function cardEl(t) {
   const a = document.createElement("a");
   a.className =
     "card" +
-    (viewMode === "list" ? " compact" : ` prio-${t.priority}`);
+    (viewMode === "list" ? " compact" : ` prio-${cssClass(t.priority)}`);
   a.href = `/ticket/${t.id}`;
   a.draggable = true;
   a.dataset.id = t.id;
   a.dataset.bucket = t.bucket;
   if (viewMode === "list") {
     a.innerHTML = `
-      <span class="prio-dot prio-${t.priority}" aria-label="Priority ${esc(t.priority)}"></span>
-      <span class="id">${t.id}</span>
+      <span class="prio-dot prio-${cssClass(t.priority)}" aria-label="Priority ${esc(t.priority)}"></span>
+      <span class="id">${esc(t.id)}</span>
       <span class="dom-text dom-${cssClass(t.domain)}">${esc(t.domain)}</span>
       <span class="title"></span>`;
     a.querySelector(".title").textContent = t.title;
@@ -199,7 +199,7 @@ function cardEl(t) {
       : "";
     a.innerHTML = `
       <div class="card-header">
-        <div class="id">${t.id}</div>
+        <div class="id">${esc(t.id)}</div>
         <span class="dom-text dom-${cssClass(t.domain)}">${esc(t.domain)}</span>
       </div>
       <div class="title"></div>
@@ -280,7 +280,7 @@ function showListTooltip(t, evt) {
     <div class="skua-tt-meta">
       <span class="dom-text dom-${cssClass(t.domain)}">${esc(t.domain)}</span>
       <span class="skua-tt-sep">·</span>
-      <span class="prio-text prio-${t.priority}">${esc(t.priority)}</span>
+      <span class="prio-text prio-${cssClass(t.priority)}">${esc(t.priority)}</span>
       ${t.created ? `<span class="skua-tt-sep">·</span><span class="skua-tt-muted">${esc(t.created)}</span>` : ""}
     </div>
     ${hintHtml}
