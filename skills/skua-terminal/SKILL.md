@@ -67,7 +67,9 @@ shell → vim
   correct by the buffer-probe. TERM is `xterm-256color` on both sides (zellij
   ships no terminfo; panes inherit it from the creating env).
 - Isolation: every zellij call runs with `ZELLIJ_SOCKET_DIR=
-  .skua/cache/terminals/zellij` and `ZELLIJ_CONFIG_DIR=.skua/lib/zellij`, so
+  /tmp/skua-<hash8>z` (NOT under the repo or `$TMPDIR` — macOS's ~104-byte
+  unix-socket path limit; see the comment block in `lib/terminals.ts`) and
+  `ZELLIJ_CONFIG_DIR=.skua/lib/zellij`, so
   skua's sessions/config never touch a personal zellij. The bare-pane layout
   (`lib/zellij/layouts/skua.kdl`, wired by `default_layout "skua"`) removes
   all zellij chrome; `default_mode "locked"` passes every key through except two
@@ -121,6 +123,15 @@ Scratch-harness pattern (see `scripts/buffer-probe-zellij.mjs`): create a
 throwaway session via `POST /api/terminals`, drive
 `/terminal-xterm.html?port=<p>`, `DELETE` after.
 
+**No-browser byte probe** (when Playwright/Chromium is unavailable): attach a
+fixed-size pty client directly — Python `pty.openpty()` + `TIOCSWINSZ`, spawn
+`zellij attach` on the slave (throwaway `ZELLIJ_SOCKET_DIR`), drive input, and
+capture the master's bytes. Parse CUP (`ESC[r;cH`) targets / DECSTBM / non-ASCII
+glyphs to check emitted geometry against the client size, and run it once per
+layout/config variant to isolate a suspect (2026-08-01: proved the tab-bar
+layout byte-equivalent to the bare one — same max row, same prompt row, ASCII
+only). Localizes pty-side vs pixel-side without any browser.
+
 ## The resize / re-fit model
 
 **Stale 80×24 handshake.** A terminal iframe opens its WebSocket while its tab is
@@ -130,6 +141,18 @@ iframe; `terminal-xterm.js` re-fits (fires `onResize → sendResize`, correcting
 pty) then repaints. `activate()` also persists the tab id (`ACTIVE_TERM_KEY`) so
 a reload re-selects the viewed tab and its reattach replay happens at real size.
 Tell-tale: a session rendering at 80×24 while active.
+
+**Bottom row partially clipped** (prompt "cut off a little" when the screen is
+full) — SOLVED 2026-08-01: **never put padding on the fit mount.** The FitAddon
+reads `getComputedStyle(mount).height` and subtracts only the *xterm element's*
+padding — and Chrome reports the **border-box** height for a
+`box-sizing:border-box` element (proven with a headless `--dump-dom` probe), so
+padding on `#term` inflated the row count by up to 8px. The clip only shows when
+`height % cellHeight < paddingVert`, i.e. it is a window-height lottery — the
+identical weave-era code looked fine at other window sizes, and it survives
+refits (deterministic per height). Fix: the 4px/6px gap on `#term` is `inset:
+4px 6px` (positioning), NOT padding. Byte-level suspects eliminated en route:
+the tab-bar layout emits identical, ASCII-only geometry vs a bare pane.
 
 **Resize with vim open.** `onResize → sendResize` tells ttyd's pty the new size,
 the zellij client relays it to the session, and the app redraws on SIGWINCH —
@@ -170,6 +193,56 @@ launch. Pull authoritative action/mode syntax for the installed version from
 Rollout: **new** terminals load the change immediately; **already-open** ones keep
 the old config until ttyd reattaches (fresh terminal or dashboard restart) —
 zellij has no live config reload.
+
+## Dead attach client (keystrokes silently dropped)
+
+"Typed into the tab and nothing happens — not even echo" is usually NOT lag or
+rendering: ttyd's `zellij attach` child can wedge in an exiting state (`ps`
+STAT `?Es`, argv collapses to `(zellij)`) while the **server stays healthy**.
+The browser websocket is still up, so the tab looks alive, but every keystroke
+is written to a corpse. Diagnostic signature (2026-08-01): `zellij
+list-sessions` (correct socket dir!) shows the session non-EXITED, but
+`dump-screen` returns **empty** — empty means no attached client. Confirm by
+attaching a throwaway pty client (`script -q /dev/null zellij attach <s>`) and
+re-running `dump-screen`: grid appears ⇒ only the client was dead. Fix:
+close/reopen the tab (Reconnect) — ttyd respawns the attach, zellij replays the
+screen; session + scrollback survive. Since 2026-08-01 the dashboard also
+self-heals this: `terminals.ts:ttydClientsWedged` (ridden by the `listSessions`
+poll, 15s throttle) detects a ttyd whose attach children are ALL exiting/zombie
+and respawns it; the page's ws reconnect restores the tab in-place. These
+corpses accumulate (hundreds observed across old installs) but hold ~0 CPU/RAM;
+reap via the kill switch or by hand.
+
+## Missing keystrokes while typing (proxy keepalive)
+
+Since the browser stopped dialling ttyd directly (it now goes
+browser → dashboard `/api/terminals/:id/ws` → `Bun.connect({unix})` → ttyd), the
+dashboard plays the WebSocket **client** role — and owes ttyd the control frames
+the browser used to answer for free. Two silent-drop paths, both fixed
+2026-08-01, both in `server.ts`:
+
+- **No PONG → upstream killed every 10s.** ttyd (libwebsockets) PINGs at 5s and
+  closes ~5s later with no PONG. Measured directly against a live socket: `PING`
+  at +5.0s, `UPSTREAM CLOSED` at +10.0s. `closeUpstream` then closes every
+  browser client, the page reconnects (~1s backoff), and `sendInput`'s
+  `readyState !== OPEN` guard swallows every keystroke in the gap — reads as
+  laggy typing with dropped characters, on a ~10s cycle. Each forced reconnect
+  also leaks a ttyd pty handle, so this quietly drains the 511-pty system pool
+  and piles up `(zellij)` corpses. Fix: `dialTtyd` answers PING with a masked
+  PONG (`dispatch()`).
+- **`open()` is async; Bun delivers `message()` during it** (verified). The old
+  `upstreams.get(id)?.conn.send()` dropped everything that arrived before the
+  dial resolved — including ttyd's init handshake carrying columns/rows. Fix:
+  queue on `ws.data.pending`, flushed by `flushPending` on both attach paths.
+
+Regression probe: `bun .skua/scripts/ws-keepalive-probe.ts [dashboardUrl]` —
+creates a throwaway terminal, idles 25s (two-plus ping cycles), asserts the
+socket is still open and input still lands, deletes the terminal. It failed at
+10s before the fix.
+
+Distinguishing it from the dead-attach-client case above: this one drops only
+*some* keystrokes and recovers on its own; a dead attach client drops
+*everything* and never recovers until the tab is reopened.
 
 ## Recovery levers
 

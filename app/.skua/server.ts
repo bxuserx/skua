@@ -43,7 +43,7 @@ import {
   type ParsedAdr,
 } from "./lib/adrs.ts";
 import { listSessions, createSession, killSession, readLive, readLastCommand, renameSession, reorderSessions, killAllSessions, getSession, shutdownTtyds } from "./lib/terminals.ts";
-import { FrameDecoder, encodeFrame, OP_TEXT, OP_BIN, OP_CLOSE, type Frame } from "./lib/wsframe.ts";
+import { FrameDecoder, encodeFrame, OP_TEXT, OP_BIN, OP_CLOSE, OP_PING, OP_PONG, type Frame } from "./lib/wsframe.ts";
 import type { ServerWebSocket } from "bun";
 import { runSearch, SEARCH_ROOT } from "./lib/search.ts";
 import { activeRuns } from "./lib/chaos.ts";
@@ -510,7 +510,12 @@ async function readCachedOrBuild(
 // This is what makes the terminal reachable at all now that ttyd has no TCP
 // port — and it is the reason it is safe: the socket has no browser-reachable
 // surface, and this route sits behind the same origin guard as everything else.
-type TermSocketData = { id: string; up?: UpstreamConn };
+// `pending` holds frames that arrived while open() was still dialing the
+// upstream. Bun delivers message() during an async open() (verified), so without
+// this queue the browser's very first frames — the ttyd init handshake carrying
+// columns/rows, plus anything typed immediately after — were silently dropped by
+// the `upstreams.get(...)?` lookup.
+type TermSocketData = { id: string; pending?: Uint8Array[] };
 
 type UpstreamConn = {
   send(data: Uint8Array): void;
@@ -526,12 +531,27 @@ async function dialTtyd(
   let upgraded = false;
   let handshake = new Uint8Array(0);
 
+  // ttyd (libwebsockets) PINGs every 5s and CLOSES the connection ~5s later if no
+  // PONG comes back — measured here: PING at +5s, close at +10s. Nothing answered
+  // pings before, so every upstream died on a 10s cycle; the browser then
+  // reconnected (≈1s of backoff) and every keystroke typed in that window was
+  // silently swallowed by sendInput()'s `readyState !== OPEN` guard. That is the
+  // "missing keystrokes / laggy typing" bug, and it only appeared with this proxy:
+  // when the browser dialled ttyd directly its own WebSocket stack auto-PONGed.
+  // Each forced reconnect also leaked a ttyd pty handle (see the pooling note
+  // below), so the cycle burned the machine's pty pool as well.
+  function dispatch(s: { write(b: Uint8Array): number }, f: Frame): void {
+    if (f.opcode === OP_PING) { s.write(encodeFrame(OP_PONG, f.payload)); return; }
+    if (f.opcode === OP_PONG) return;
+    onFrame(f);
+  }
+
   const sock = await Bun.connect({
     unix: socketPath,
     socket: {
       data(_s, chunk) {
         if (upgraded) {
-          for (const f of decoder.push(chunk)) onFrame(f);
+          for (const f of decoder.push(chunk)) dispatch(_s, f);
           return;
         }
         // Still reading ttyd's 101 response; the first frames can share the chunk.
@@ -548,7 +568,7 @@ async function dialTtyd(
         upgraded = true;
         const rest = handshake.subarray(end + 4);
         handshake = new Uint8Array(0);
-        if (rest.length) for (const f of decoder.push(rest)) onFrame(f);
+        if (rest.length) for (const f of decoder.push(rest)) dispatch(_s, f);
       },
       close: onClose,
       error: onClose,
@@ -603,14 +623,23 @@ function closeUpstream(id: string): void {
   for (const c of up.clients) { try { c.close(); } catch { /* already gone */ } }
 }
 
+function flushPending(ws: ServerWebSocket<TermSocketData>): void {
+  const queued = ws.data.pending;
+  ws.data.pending = undefined;
+  if (!queued?.length) return;
+  const up = upstreams.get(ws.data.id);
+  if (up) for (const b of queued) up.conn.send(b);
+}
+
 async function attachClient(ws: ServerWebSocket<TermSocketData>): Promise<void> {
   const id = ws.data.id;
-  let up = upstreams.get(id);
+  const up = upstreams.get(id);
 
   if (up) {
     // Reuse: cancel the pending teardown and join the existing stream.
     if (up.idleTimer) { clearTimeout(up.idleTimer); up.idleTimer = undefined; }
     up.clients.add(ws);
+    flushPending(ws);
     return;
   }
 
@@ -632,6 +661,7 @@ async function attachClient(ws: ServerWebSocket<TermSocketData>): Promise<void> 
     () => closeUpstream(id),
   );
   upstreams.set(id, { conn, clients });
+  flushPending(ws);
 }
 
 function detachClient(ws: ServerWebSocket<TermSocketData>): void {
@@ -1421,7 +1451,11 @@ const serveOptions = {
 
     message(ws: ServerWebSocket<TermSocketData>, msg: string | Uint8Array) {
       const bytes = typeof msg === "string" ? new TextEncoder().encode(msg) : msg;
-      upstreams.get(ws.data.id)?.conn.send(bytes);
+      const up = upstreams.get(ws.data.id);
+      // No upstream yet = open() is still dialing; queue rather than drop.
+      // slice() because Bun may reuse the message buffer after this returns.
+      if (up) up.conn.send(bytes);
+      else (ws.data.pending ??= []).push(bytes.slice());
     },
 
     close(ws: ServerWebSocket<TermSocketData>) {

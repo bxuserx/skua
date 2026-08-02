@@ -264,6 +264,35 @@ function safeKill(pid: number): void {
   }
 }
 
+// A ttyd whose `zellij attach` child has wedged mid-exit keeps its websocket
+// open while every keystroke is written to the corpse — the tab looks alive but
+// silently drops input (observed 2026-08-01; macOS: child STAT `?Es`, argv
+// collapses to `(zellij)`). True when the ttyd HAS client children and every
+// one is in an exiting/zombie state; no children just means no browser tab is
+// connected, which is healthy.
+async function ttydClientsWedged(pid: number): Promise<boolean> {
+  try {
+    const kids = Bun.spawn(["pgrep", "-P", String(pid)], { stdout: "pipe", stderr: "ignore" });
+    const kidList = (await new Response(kids.stdout).text()).trim();
+    await kids.exited;
+    if (!kidList) return false;
+    const ps = Bun.spawn(["ps", "-o", "stat=", "-p", kidList.split("\n").join(",")], {
+      stdout: "pipe",
+      stderr: "ignore",
+    });
+    const stats = (await new Response(ps.stdout).text()).trim().split("\n").filter(Boolean);
+    await ps.exited;
+    return stats.length > 0 && stats.every((s) => /[EZ]/.test(s));
+  } catch {
+    return false;
+  }
+}
+
+// Wedge-healing rides the dashboard's listSessions poll (no extra timer), but a
+// process scan per poll per session would be wasteful — throttle it.
+const WEDGE_CHECK_MS = 15_000;
+let lastWedgeCheck = 0;
+
 // ── zellij plumbing ───────────────────────────────────────────────────────
 
 // Every zellij invocation (and the ttyd that wraps one) gets the private socket
@@ -569,6 +598,8 @@ function resolveCwd(input?: string): string {
 export async function listSessions(): Promise<Array<TermSession & { alive: boolean }>> {
   const recs = await readAllRecords();
   const out: Array<TermSession & { alive: boolean }> = [];
+  const checkWedged = Date.now() - lastWedgeCheck > WEDGE_CHECK_MS;
+  if (checkWedged) lastWedgeCheck = Date.now();
   for (const r of recs) {
     // Record from another persistence branch (dtach/tmux-era: no zellij name):
     // retire it from the dashboard. Its master, if any, is left alone.
@@ -577,7 +608,16 @@ export async function listSessions(): Promise<Array<TermSession & { alive: boole
     // and its zellij session are gone (truly closed) — and never kill a live
     // process from a read. A dead ttyd whose session survived is kept as
     // alive:false; startup reconcile respawns ttyd for it.
-    if (pidAlive(r.pid)) { out.push({ ...r, alive: true }); continue; }
+    if (pidAlive(r.pid)) {
+      // Self-heal a ttyd whose attach clients are all corpses: respawn it; the
+      // page's ws reconnect + zellij's attach replay restore the tab in-place.
+      if (checkWedged && (await ttydClientsWedged(r.pid))) {
+        const healed = await respawnTtyd(r).catch(() => null);
+        if (healed) { out.push({ ...healed, alive: true }); continue; }
+      }
+      out.push({ ...r, alive: true });
+      continue;
+    }
     if (await zellijHasSession(r.zellij)) { out.push({ ...r, alive: false }); continue; }
     await removeRecord(r.id);
     await removeLive(r.id);

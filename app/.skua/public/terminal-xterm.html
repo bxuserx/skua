@@ -26,17 +26,19 @@
         <style>
             /* html carries the scheme background (set by the bootstrap above and
                kept current by terminal-xterm.js); body stays transparent so the
-               #term padding reveals that single source of truth. */
+               #term inset gap reveals that single source of truth. */
             html,
             body {
                 margin: 0;
                 height: 100%;
             }
             #term {
+                /* Gap via inset, NOT padding: the FitAddon reads this element's
+                   computed height, which Chrome reports as the border-box — with
+                   padding here the row count is computed 8px too tall and the
+                   bottom row clips whenever height % cellHeight < 8px. */
                 position: absolute;
-                inset: 0;
-                padding: 4px 6px;
-                box-sizing: border-box;
+                inset: 4px 6px;
             }
             .xterm {
                 height: 100%;
