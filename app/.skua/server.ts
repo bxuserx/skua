@@ -63,6 +63,7 @@ const MIME: Record<string, string> = {
   ".svg": "image/svg+xml",
   ".ico": "image/x-icon",
   ".png": "image/png",
+  ".woff2": "font/woff2", // vendored Fira Code / JetBrains Mono (styles/fonts.css)
 };
 
 // Security headers — defense-in-depth on top of the per-sink HTML escaping.
