@@ -98,6 +98,11 @@ const TERMINAL_HTML_HEADERS = {
   ...NOSNIFF,
 };
 
+// Headers for the two pages terminal.html frames: the xterm client
+// (terminal-xterm.html) and the project-search tab (search.html). Both are
+// same-origin and both need `frame-ancestors 'self'` — under the base CSP's
+// 'none' the browser blocks the frame outright and the pane renders empty.
+//
 // The framed client (terminal-xterm.html) now opens its WebSocket back to THIS
 // origin (/api/terminals/:id/ws), which proxies to the session's ttyd over a
 // unix socket. connect-src is therefore plain 'self' — the previous
@@ -105,7 +110,7 @@ const TERMINAL_HTML_HEADERS = {
 // dialled the ttyd port directly, which is precisely the surface a web page
 // could also reach. Built fresh (not appended to CSP) because a second
 // `frame-ancestors` directive is ignored — the base CSP pins it to 'none'.
-const TERMINAL_XTERM_HTML_HEADERS = {
+const FRAMED_HTML_HEADERS = {
   "content-security-policy": [
     "default-src 'self'",
     "script-src 'self' 'unsafe-inline'",
@@ -329,8 +334,8 @@ async function serveStatic(path: string): Promise<Response> {
       const htmlHeaders =
         path === "terminal.html"
           ? TERMINAL_HTML_HEADERS
-          : path === "terminal-xterm.html"
-            ? TERMINAL_XTERM_HTML_HEADERS
+          : path === "terminal-xterm.html" || path === "search.html"
+            ? FRAMED_HTML_HEADERS
             : HTML_HEADERS;
       return new Response(html, {
         headers: {
