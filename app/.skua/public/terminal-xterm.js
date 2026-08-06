@@ -118,12 +118,38 @@ const fit = new FitAddon.FitAddon();
 term.loadAddon(fit);
 
 const mount = document.getElementById("term");
-term.open(mount);
-// No renderer addon: xterm uses its built-in DOM renderer, which re-renders each
-// row from the buffer on refresh, so deleting a line never leaves a ghost. (The
-// canvas addon we used before painted stale glyphs — the ghost-on-delete bug.)
-applyScheme();
-safeFit();
+
+// Boot — open the terminal and dial ttyd — only once this frame actually has a
+// box on screen. terminal.js mounts an iframe per tab up front and hides the
+// inactive ones (display:none), and booting inside a hidden frame is actively
+// destructive:
+//
+//   • term.open() MEASURES the character cell. In a display:none frame that
+//     measurement is 0, and FitAddon then refuses to resize at all
+//     (`if (cell.width === 0) return`), so the terminal stays wedged at xterm's
+//     default 80×24.
+//   • ttyd APPLIES the handshake size to the pty. So a hidden tab silently
+//     resizes its zellij pane to 80 columns — and a `claude` running in there
+//     re-renders its conversation at 80 columns. Clicking the tab restores the
+//     size, but nothing can un-wrap text that was already written narrow, which
+//     is why the chat stayed cut off half way across until a hard reload.
+//
+// Deferring costs nothing: a background tab has nothing to show, zellij keeps
+// the session alive server-side, and the status dot comes from /api/terminals.
+let booted = false;
+function boot() {
+    if (booted || mount.clientWidth === 0 || mount.clientHeight === 0) return;
+    booted = true;
+    // No renderer addon: xterm uses its built-in DOM renderer, which re-renders
+    // each row from the buffer on refresh, so deleting a line never leaves a
+    // ghost. (The canvas addon we used before painted stale glyphs — the
+    // ghost-on-delete bug.)
+    term.open(mount);
+    applyScheme();
+    safeFit(); // now measurable, so this sets the REAL cols/rows for the handshake
+    connect();
+    term.focus();
+}
 
 // ── ttyd socket ─────────────────────────────────────────────────────────────
 
@@ -519,16 +545,18 @@ if (!termId) {
         if (sel) copyText(sel, false);
     });
 
-    new ResizeObserver(() => safeFit()).observe(mount);
+    // Gaining a box is what boots a deferred frame — this fires when the tab is
+    // shown for the first time, and is the only wake-up a frame is guaranteed
+    // to get (the parent's postMessage below can beat the child's layout).
+    new ResizeObserver(() => { boot(); safeFit(); }).observe(mount);
     window.addEventListener("resize", safeFit);
 
-    // Parent (terminal.js) → child signal. A frame that connected while its tab
-    // was hidden handshaked at xterm's default 80×24 (safeFit no-ops at 0×0); on
-    // tab-activate we re-fit — which fires onResize → sendResize, correcting the
-    // pty size — then repaint.
+    // Parent (terminal.js) → child signal on tab-activate: boot if this is the
+    // first time we've been shown, then re-fit + repaint.
     window.addEventListener("message", (e) => {
         if (e.origin !== location.origin) return;
         if (e.data && e.data.type === "skua-activate") {
+            boot();
             safeFit();
             repaint();
         }
@@ -549,6 +577,5 @@ if (!termId) {
         }
     });
 
-    connect();
-    term.focus();
+    boot(); // visible already (the active tab) → boots now; hidden → waits
 }

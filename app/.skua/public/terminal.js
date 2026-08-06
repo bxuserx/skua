@@ -9,6 +9,8 @@
 // Iframes are mounted once per session and kept in the DOM (hidden when
 // inactive) so switching is instant and never tears down a live connection.
 
+import { statusIcon, STATUS_LABEL } from "/components/status-icons.js";
+
 const CWD_KEY = "skua.terminal-cwd";
 const COLLAPSED_KEY = "skua.terminal-sidebar-collapsed";
 const SIDEBAR_W_KEY = "skua.terminal-sidebar-width";
@@ -40,9 +42,6 @@ let activeId = null;
 let savedTimer = null;
 let currentIdsKey = "";
 let draggingId = null; // id of the tab currently being drag-reordered, else null
-const prevStatus = new Map(); // id -> last raw status reported by the server
-const doneIds = new Set(); // background terminals that finished, awaiting a look
-const lastSummary = new Map(); // id -> last non-null summary (shown on the "done" badge)
 let lastSessions = []; // most recent /api/terminals payload (drives the tab hovercards)
 
 // ── search tabs ────────────────────────────────────────────────────────────────
@@ -94,21 +93,155 @@ try {
 
 // ── status / summary helpers ────────────────────────────────────────────────
 
-function dotClass(s) {
-    return "term-status-dot is-" + (s.display || s.status || "idle");
+// The dot renders two bits the server hands us — is Claude RUNNING, and does it
+// NEED YOU — crossed with one bit we own: have you looked at this tab since it
+// started needing you.
+//
+//   none     no Claude session here (plain shell, or `claude` has exited)
+//   working  Claude is running                       → spinner (the only motion)
+//   blocked  waiting on you to answer something      → red !
+//   unread   finished, and you haven't looked        → envelope
+//   seen     finished, and you've already looked     → check
+//   stale    claims to be working but stopped
+//            checking in (killed / crashed / Esc)    → broken ring
+//
+// "Unread" is a timestamp comparison, not a transition we have to witness: it
+// survives a reload and can't miss a turn that began and ended between two polls.
+//
+// Note the asymmetry between the two kinds of needs-you: reading a FINISHED turn
+// settles it, but reading a permission prompt does not answer it — Claude is
+// still blocked and will sit there indefinitely — so `waiting` keeps its own
+// glyph whether you've looked or not, and only answering it clears it.
+//
+// Each state is a distinct SHAPE, so the set survives being read in greyscale;
+// colour only reinforces what the glyph already says.
+function dotState(s) {
+    if (!s.isClaude) return "none";
+    if (s.stale) return "stale";
+    if (s.status === "working") return "working";
+    if (s.status === "waiting") return "blocked";
+    return isUnread(s) ? "unread" : "seen";
 }
 
-// Sub-line shows what the session is up to. A live summary (working, waiting, or
-// an idle-but-open Claude Code session) wins; on a just-finished "done" tab with
-// no live summary we fall back to the last one we saw; a plain shell shows cwd.
+// Paint `el` for session `s`. The glyph is rebuilt ONLY when the state actually
+// changes: re-creating it on every 2.5s poll would restart the spinner
+// mid-rotation and make a working tab stutter.
+function applyDot(el, s) {
+    const state = dotState(s);
+    if (el.dataset.state !== state) {
+        el.dataset.state = state;
+        const icon = statusIcon(state);
+        if (icon) el.replaceChildren(icon);
+        else el.replaceChildren();
+    }
+    el.className = "term-status-dot is-" + state;
+    const label = STATUS_LABEL[state];
+    if (label) {
+        el.setAttribute("role", "img");
+        el.setAttribute("aria-label", label);
+    } else {
+        el.removeAttribute("role");
+        el.removeAttribute("aria-label");
+    }
+}
+
+// Sub-line shows what the session is up to: a live summary if the hook has one
+// (it survives Stop, so a finished tab still shows what it last worked on), else
+// the cwd — which is all a plain shell ever has.
 function subInfo(s) {
     if (s.summary) return { text: s.summary, isSummary: true };
-    if ((s.display || s.status) === "done") {
-        const last = lastSummary.get(s.id);
-        if (last) return { text: last, isSummary: true };
-    }
     return { text: s.cwd, isSummary: false };
 }
+
+// ── seen tracking ─────────────────────────────────────────────────────────────
+// When you last LOOKED at each tab (not merely "it was the last one clicked"):
+// the active tab counts as looked-at only while this page is actually visible and
+// focused, so a terminal left selected behind another window keeps its unread
+// flash. Persisted, so the mark survives a reload the way the server's
+// awaitingSince does.
+const SEEN_KEY = "skua.terminal-seen";
+
+function loadSeen() {
+    try {
+        const raw = JSON.parse(localStorage.getItem(SEEN_KEY) || "{}");
+        return raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+    } catch {
+        return {};
+    }
+}
+let seenAt = loadSeen(); // id -> ISO string of when you last looked at that tab
+
+function saveSeen() {
+    try {
+        localStorage.setItem(SEEN_KEY, JSON.stringify(seenAt));
+    } catch {
+        /* persistence best-effort — unread still works for this page's lifetime */
+    }
+}
+
+// Is the user actually looking at this page? A tab in a background window or
+// another space is not "read", however long it has been selected.
+function isViewing() {
+    return document.visibilityState === "visible" && document.hasFocus();
+}
+
+function markSeen(id) {
+    if (!id) return;
+    seenAt[id] = new Date().toISOString();
+    saveSeen();
+}
+
+// Both stamps are ISO-8601 UTC from the same machine, so a string compare is a
+// time compare. No awaitingSince (still working, or a fresh session that has
+// produced nothing yet) means there is nothing to read.
+function isUnread(s) {
+    if (!s.awaitingSince) return false;
+    const seen = seenAt[s.id];
+    return !seen || seen < s.awaitingSince;
+}
+
+// Keep the active tab's seen-stamp rolling while you're watching it, and forget
+// tabs that no longer exist so the store can't grow forever. Only terminals get
+// a stamp: search tabs have no session and would be pruned right back out on the
+// next poll, writing to localStorage twice a tick for nothing.
+function reconcileSeen(sessions) {
+    const live = new Set(sessions.map((s) => s.id));
+    if (activeId && live.has(activeId) && isViewing()) markSeen(activeId);
+    let dropped = false;
+    for (const id of Object.keys(seenAt)) {
+        if (!live.has(id)) {
+            delete seenAt[id];
+            dropped = true;
+        }
+    }
+    if (dropped) saveSeen();
+}
+
+// Coming back to the window is itself an act of reading: stamp the tab you're on
+// and repaint immediately rather than leaving it flashing until the next poll.
+function onLook() {
+    if (!activeId || !isViewing()) return;
+    if (lastSessions.some((s) => s.id === activeId)) markSeen(activeId);
+    patchStatus(lastSessions);
+}
+document.addEventListener("visibilitychange", onLook);
+window.addEventListener("focus", onLook);
+
+// Another dashboard page (second browser tab/window) marked something read.
+// Adopt any stamp newer than ours, so reading a tab in one page settles it in
+// both — and so this page's next save can't clobber a mark it never saw.
+window.addEventListener("storage", (e) => {
+    if (e.key !== SEEN_KEY) return;
+    const other = loadSeen();
+    let changed = false;
+    for (const id of Object.keys(other)) {
+        if (!seenAt[id] || seenAt[id] < other[id]) {
+            seenAt[id] = other[id];
+            changed = true;
+        }
+    }
+    if (changed) patchStatus(lastSessions);
+});
 
 function applyDead(nameEl, s) {
     let dead = nameEl.querySelector(".term-item-dead");
@@ -120,32 +253,6 @@ function applyDead(nameEl, s) {
         nameEl.appendChild(dead);
     } else if (s.alive !== false && dead) {
         dead.remove();
-    }
-}
-
-// Derive the "done — needs attention" badge. A background tab (not the one
-// you're viewing) that just went from working/attention to idle is marked done,
-// and stays done until you click into it. Pure client state — the server only
-// reports working/attention/idle. Sets s.display, used by dotClass/subInfo.
-function reconcileDone(sessions) {
-    const live = new Set(sessions.map((s) => s.id));
-    for (const id of [...prevStatus.keys()]) if (!live.has(id)) prevStatus.delete(id);
-    for (const id of [...doneIds]) if (!live.has(id)) doneIds.delete(id);
-    for (const id of [...lastSummary.keys()]) if (!live.has(id)) lastSummary.delete(id);
-
-    for (const s of sessions) {
-        const raw = s.status || "idle";
-        const prev = prevStatus.get(s.id);
-        if (s.summary) lastSummary.set(s.id, s.summary);
-        if (s.id === activeId) {
-            doneIds.delete(s.id); // you're looking at it — never "needs attention"
-        } else if (raw === "idle") {
-            if (prev === "working" || prev === "attention") doneIds.add(s.id); // just finished
-        } else {
-            doneIds.delete(s.id); // working/attention again — the live state wins
-        }
-        prevStatus.set(s.id, raw);
-        s.display = doneIds.has(s.id) ? "done" : raw;
     }
 }
 
@@ -188,12 +295,16 @@ function activate(id) {
     if (!frames.has(id)) return;
     activeId = id;
     try { localStorage.setItem(ACTIVE_TERM_KEY, id); } catch { /* localStorage unavailable */ }
-    // Viewing a "done" tab clears its badge immediately (done implies idle).
-    if (doneIds.delete(id)) {
-        const li = listEl.querySelector(`.term-item[data-id="${id}"]`);
-        const dot = li && li.querySelector(".term-status-dot");
-        if (dot) dot.className = "term-status-dot is-idle";
-    }
+    // Opening a tab reads it — but only if you're actually here (this also runs
+    // when a reload re-selects the last tab, possibly in a hidden window), and
+    // only for real terminals (a search tab has no session to be unread). Repaint
+    // its dot now instead of waiting for the next poll; a session that is still
+    // working keeps pulsing, because looking at a tab doesn't stop the work.
+    const s = lastSessions.find((x) => x.id === id);
+    if (s && isViewing()) markSeen(id);
+    const li = listEl.querySelector(`.term-item[data-id="${id}"]`);
+    const dot = li && li.querySelector(".term-status-dot");
+    if (dot && s) applyDot(dot, s);
     for (const [fid, f] of frames) f.hidden = fid !== id;
     // The now-visible terminal re-fits + repaints: a frame that connected while
     // hidden handshaked at xterm's default 80×24 (its safeFit no-ops at 0×0), so
@@ -514,7 +625,7 @@ function renderList(tabs) {
         name.className = "term-item-name";
 
         const dot = document.createElement("span");
-        dot.className = dotClass(s);
+        applyDot(dot, s);
 
         const title = document.createElement("span");
         title.className = "term-item-title";
@@ -578,7 +689,7 @@ function patchStatus(sessions) {
         const li = listEl.querySelector(`.term-item[data-id="${s.id}"]`);
         if (!li) continue;
         const dot = li.querySelector(".term-status-dot");
-        if (dot) dot.className = dotClass(s);
+        if (dot) applyDot(dot, s);
         const name = li.querySelector(".term-item-name");
         if (name) applyDead(name, s);
         // Keep the tab label in sync with the live last-command title, unless the
@@ -612,12 +723,17 @@ async function fetchSessions() {
 
 async function load() {
     let sessions = [];
+    let reached = true;
     try {
         sessions = await fetchSessions();
     } catch {
         sessions = [];
+        reached = false; // "the server didn't answer" is NOT "you have no terminals"
     }
-    reconcileDone(sessions);
+    // Only reconcile against a real answer: pruning against a fabricated empty
+    // list would wipe every seen-stamp, and every tab would flash unread again
+    // the moment the server came back.
+    if (reached) reconcileSeen(sessions);
     lastSessions = sessions;
     const tabs = buildTabs(sessions);
     renderList(tabs);
@@ -641,7 +757,7 @@ async function refresh() {
     } catch {
         return;
     }
-    reconcileDone(sessions);
+    reconcileSeen(sessions);
     lastSessions = sessions;
     const tabs = buildTabs(sessions);
     if (idsKey(tabs) !== currentIdsKey) {

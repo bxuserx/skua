@@ -356,6 +356,26 @@ async function zellijHasSession(name: string | undefined): Promise<boolean> {
   }
 }
 
+/**
+ * Force zellij to re-render this session's screen to every attached client.
+ *
+ * Any `zellij action` briefly joins the session as a CLI client, and the change
+ * in the client set makes zellij repaint — which is exactly the screen a
+ * browser client misses when it joins an already-open ttyd connection instead
+ * of dialling its own (see attachClient in server.ts). `list-clients` is the
+ * cheapest read-only action.
+ *
+ * Deliberately NOT a resize nudge. Sending RESIZE rows-1/rows would also force
+ * the repaint, but it drives two real SIGWINCHes into whatever is running in
+ * the pane (measured: it eats vim's status line), and racing the client's own
+ * fit can leave the pty a row short. This never touches the pty at all.
+ */
+export async function repaintSession(name: string | undefined): Promise<void> {
+  if (!name || !Bun.which("zellij")) return;
+  // Long-form --session: `-s` is documented as naming a NEW session.
+  await zellijRun(["--session", name, "action", "list-clients"]);
+}
+
 // ── Spawning ──────────────────────────────────────────────────────────────
 
 /** Resolve once ttyd is actually accepting on `socket`, or false after timeout.
@@ -540,14 +560,12 @@ async function removeZdot(id: string): Promise<void> {
 
 // ── Live status (hook-written) ──────────────────────────────────────────────
 
-export type TermLive = {
-  state?: "working" | "attention" | "idle";
-  summary?: string | null;
-  notification?: { type: string; message: string; id: string; at: string } | null;
-  // The Claude session id running in this terminal (recorded by the
-  // skua_terminal_live.ts hook). Lets the dashboard fork it from the outside.
-  sessionId?: string | null;
-};
+// The live-file shape and its mapping to what the dot renders live in their own
+// dependency-free module (lib/terminal-status.ts) — re-exported here so callers
+// still get everything terminal-related from one place.
+export type { TermLive, LiveStatus } from "./terminal-status.ts";
+export { summarizeLive } from "./terminal-status.ts";
+import type { TermLive } from "./terminal-status.ts";
 
 // Read the live status the skua_terminal_live.ts hook keeps for a session, or null
 // when there's no Claude/hook activity.

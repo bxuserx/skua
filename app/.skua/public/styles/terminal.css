@@ -260,8 +260,8 @@ main.terminal-page.sidebar-collapsed #term-new {
 }
 
 /* Collapsed session list: each tab becomes a numbered square you click to
-   switch to it. The live status dot rides in the corner; idle dots stay hidden
-   (their default), so a quiet terminal is just its number. */
+   switch to it. The live status dot rides in the corner; a terminal with no
+   Claude session in it renders no dot at all, so it's just its number. */
 main.terminal-page.sidebar-collapsed .term-list {
     align-items: center;
     padding: 4px;
@@ -530,27 +530,94 @@ main.terminal-page.sidebar-collapsed .term-item-name {
     }
 }
 
-/* Per-tab live status dot (working / needs-you / idle) + AI summary line.
-   Sits as the first child of .term-item-name (which is flex, gap 5px). */
+/* Per-tab live status mark + AI summary line. Sits as the first child of
+   .term-item-name (which is flex, gap 5px).
+
+   One glyph per state dotState() derives (see terminal.js; the shapes live in
+   components/status-icons.js): a spinning arc means Claude is running, a red !
+   means it's blocked on you, an envelope means a finished turn you haven't
+   looked at, a check means you're up to date, a broken ring means it stopped
+   reporting, and nothing at all means no Claude session here. Shape carries the
+   meaning and colour reinforces it, so the set reads in greyscale; motion is
+   reserved for the one state that is actually in motion. */
 .term-status-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
+    /* 15px wide to fit the working loader's grid; the square SVGs letterbox to
+       13px inside it (preserveAspectRatio), so every state shares one slot and
+       nothing shifts when a tab changes state. */
+    width: 15px;
+    height: 13px;
     flex-shrink: 0;
-    background: var(--muted);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted); /* the glyphs are drawn in currentColor */
 }
-.term-status-dot.is-idle {
+.term-status-dot svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+/* No Claude session: the mark is removed from layout entirely (not just hidden),
+   so a plain shell's name starts flush at the left edge with no empty slot held
+   open for a glyph it will never show. The 18px appears only if `claude` starts
+   in that terminal and there is finally something to say. */
+.term-status-dot.is-none {
     display: none;
 }
+/* Working: the ONLY moving thing in the sidebar — the flickering block grid from
+   css-loaders.com ("l29"), adapted in two ways:
+     • scaled to a 3px unit (an exact 1/3 of the original 9px), so the 3x4 grid is
+       15x12 instead of 45x36 and fits a tab row;
+     • the hardcoded #000 dropped, so every cell inherits currentColor and the
+       grid is amber in both themes. A box-shadow with no colour uses `color`,
+       which is what made the original's `color: #000` load-bearing.
+   The element itself is the grid's 2nd-row/2nd-column cell, so the shape hangs
+   off it up and to the left; translateY re-centres the grid in the slot. */
 .term-status-dot.is-working {
-    background: var(--yellow);
-    animation: skua-pulse 1.2s ease-in-out infinite;
+    color: var(--yellow);
 }
-.term-status-dot.is-attention {
-    background: var(--red);
+.skua-loader {
+    width: 3px;
+    height: 3px;
+    background: currentColor;
+    transform: translateY(-1.5px);
+    box-shadow:
+        -6px -3px, 0 -3px, 6px -3px,
+        -6px 0, 6px 0,
+        -6px 3px, 0 3px, 6px 3px,
+        -6px 6px, 0 6px, 6px 6px;
+    /* steps(1, end), not the default ease: each keyframe's grid HOLDS until the
+       next boundary instead of cross-fading into it. Cells snap out rather than
+       dimming — closer to the intent — and it's ~40% cheaper, because animating
+       box-shadow repaints on the main thread and interpolation makes that happen
+       every frame (~60/s) instead of only at the 10 boundaries (~5/s). Measured,
+       24 loaders over 4s: 252ms of task time -> 154ms. */
+    animation: skua-load 2s steps(1, end) infinite;
 }
-.term-status-dot.is-done {
-    background: var(--green);
+/* Blocked on you. Stays put once read: looking at a permission prompt doesn't
+   answer it, so this never fades to the "seen" glyph — only answering clears it. */
+.term-status-dot.is-blocked {
+    color: var(--red);
+}
+/* Finished, and you haven't looked. */
+.term-status-dot.is-unread {
+    color: var(--green);
+}
+/* Read: still a Claude tab, just nothing new in it. */
+.term-status-dot.is-seen {
+    color: var(--muted);
+    opacity: 0.55;
+}
+/* Claimed to be working, then stopped checking in — say "unknown", don't lie. */
+.term-status-dot.is-stale {
+    color: var(--muted);
+    opacity: 0.75;
+}
+/* Collapsed rail: the glyph rides the corner of a 36px square beside the tab
+   number, so it drops to a size that reads as a badge rather than a second icon. */
+main.terminal-page.sidebar-collapsed .term-status-dot {
+    width: 10px;
+    height: 10px;
 }
 .term-item-title {
     overflow: hidden;
@@ -566,15 +633,80 @@ main.terminal-page.sidebar-collapsed .term-item-name {
     opacity: 0.75;
 }
 
-@keyframes skua-pulse {
-    0%,
-    100% {
-        opacity: 1;
-        transform: scale(1);
+/* Each step blanks a few cells (#0000) and restores the rest — the flicker is
+   the cells going out, not anything moving. Transcribed from the original at the
+   3px unit; every offset is the source value divided by three. */
+@keyframes skua-load {
+    10% {
+        box-shadow:
+            -6px -3px, 0 -3px, 6px -3px,
+            -6px 0, 6px 0,
+            -6px 3px #0000, 0 3px, 6px 3px #0000,
+            -6px 6px, 0 6px, 6px 6px;
+    }
+    20% {
+        box-shadow:
+            -6px -3px, 0 -3px, 6px -3px,
+            -6px 0, 6px 0,
+            -6px 3px, 0 3px, 6px 3px #0000,
+            -6px 6px #0000, 0 6px, 6px 6px;
+    }
+    30% {
+        box-shadow:
+            -6px -3px, 0 -3px #0000, 6px -3px,
+            -6px 0 #0000, 6px 0,
+            -6px 3px, 0 3px #0000, 6px 3px,
+            -6px 6px #0000, 0 6px, 6px 6px #0000;
+    }
+    40% {
+        box-shadow:
+            -6px -3px, 0 -3px, 6px -3px,
+            -6px 0 #0000, 6px 0 #0000,
+            -6px 3px, 0 3px, 6px 3px,
+            -6px 6px, 0 6px, 6px 6px;
     }
     50% {
-        opacity: 0.4;
-        transform: scale(0.65);
+        box-shadow:
+            -6px -3px, 0 -3px, 6px -3px,
+            -6px 0, 6px 0 #0000,
+            -6px 3px #0000, 0 3px, 6px 3px,
+            -6px 6px, 0 6px, 6px 6px;
+    }
+    60% {
+        box-shadow:
+            -6px -3px, 0 -3px #0000, 6px -3px,
+            -6px 0, 6px 0,
+            -6px 3px #0000, 0 3px, 6px 3px,
+            -6px 6px #0000, 0 6px, 6px 6px;
+    }
+    70% {
+        box-shadow:
+            -6px -3px, 0 -3px #0000, 6px -3px #0000,
+            -6px 0, 6px 0,
+            -6px 3px, 0 3px, 6px 3px,
+            -6px 6px #0000, 0 6px, 6px 6px;
+    }
+    80% {
+        box-shadow:
+            -6px -3px #0000, 0 -3px, 6px -3px,
+            -6px 0, 6px 0,
+            -6px 3px, 0 3px, 6px 3px,
+            -6px 6px, 0 6px, 6px 6px #0000;
+    }
+    90% {
+        box-shadow:
+            -6px -3px #0000, 0 -3px, 6px -3px,
+            -6px 0, 6px 0,
+            -6px 3px, 0 3px #0000, 6px 3px,
+            -6px 6px, 0 6px, 6px 6px #0000;
+    }
+}
+
+/* Reduced motion: the flicker stops and the grid rests fully lit — still a
+   distinct shape against the other states, just not a moving one. */
+@media (prefers-reduced-motion: reduce) {
+    .skua-loader {
+        animation: none;
     }
 }
 

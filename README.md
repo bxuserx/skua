@@ -185,11 +185,31 @@ the default working directory set in the bar beside it — which defaults to `~`
 Requires `ttyd` + `zellij` (`brew install ttyd zellij`) — the tab shows an
 install hint if they're missing.
 
-Each tab carries a **live status dot** — pulsing amber while something is running
-(e.g. Claude working), red when it's waiting on you (a permission prompt), green
-when a background run just finished and you haven't looked yet, and nothing when
-idle — plus a short **AI summary** of what's happening. Both come from the
-local `skua_terminal_live.ts` hook that Claude Code runs inside the session.
+Each tab carries a **live status glyph** that answers two questions: is Claude
+running, and does it want you?
+
+| | | |
+|---|---|---|
+| flickering amber grid | **working** | Claude is running — the only thing that moves in the sidebar |
+| red bubble with an ✗ | **blocked on you** | a permission prompt is waiting for an answer |
+| green bubble with a ✓ | **finished, unread** | a turn ended and you haven't looked yet |
+| grey empty bubble | **idle** | finished, and you're up to date |
+| broken ring | **stopped reporting** | killed, crashed, or Esc-interrupted — the tab won't guess |
+| *(blank)* | **no Claude session** | a plain shell |
+
+The three states that describe a *conversation* share one speech-bubble
+silhouette and differ by the mark inside it, so they read as a family; the two
+that describe the *terminal* rather than the conversation deliberately don't, so
+neither can be mistaken for a message. "You've looked" means the
+dashboard was actually visible and focused with that tab open — not merely that
+it was the last one you clicked — and it's tracked by timestamp, so a turn that
+finishes while you're away is still waiting for you when you get back, even
+across a page reload. Note that reading a permission prompt is not answering it:
+the red disc stays until you actually respond.
+
+Alongside the glyph is a short **AI summary** of what the session is doing. Both
+come from the local `skua_terminal_live.ts` hook that Claude Code runs inside
+the session.
 
 > These are fully interactive, writable shells on your machine. ttyd binds to
 > localhost only and there's no extra auth — the same trust model as the rest of
@@ -199,7 +219,7 @@ local `skua_terminal_live.ts` hook that Claude Code runs inside the session.
 > in a skua terminal, a hook (`skua_terminal_live.ts`) writes its state, a few-word
 > summary of your last prompt, and any pending permission/idle prompt to a local
 > file the dashboard reads — no API key, nothing leaves your machine. Terminals
-> without the hook (e.g. a plain shell) simply show no status dot.
+> without the hook (e.g. a plain shell) simply show no status glyph.
 
 ## Parallel sessions (worktrees)
 

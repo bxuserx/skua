@@ -42,7 +42,7 @@ import {
   type AdrState,
   type ParsedAdr,
 } from "./lib/adrs.ts";
-import { listSessions, createSession, killSession, readLive, readLastCommand, renameSession, reorderSessions, killAllSessions, getSession, shutdownTtyds } from "./lib/terminals.ts";
+import { listSessions, createSession, killSession, readLive, summarizeLive, readLastCommand, renameSession, reorderSessions, killAllSessions, getSession, shutdownTtyds, repaintSession } from "./lib/terminals.ts";
 import { FrameDecoder, encodeFrame, OP_TEXT, OP_BIN, OP_CLOSE, OP_PING, OP_PONG, type Frame } from "./lib/wsframe.ts";
 import type { ServerWebSocket } from "bun";
 import { runSearch, SEARCH_ROOT } from "./lib/search.ts";
@@ -620,11 +620,39 @@ type Upstream = {
 
 const upstreams = new Map<string, Upstream>();
 
+// Joining a pooled upstream is NOT a ttyd connect: ttyd spawns no second
+// `zellij attach`, so there is no attach replay, ttyd discards the client's
+// re-sent handshake (a no-op once that connection already has a process), and
+// zellij only emits on change. A fresh iframe therefore lands on a BLANK pane
+// and stays blank until something repaints — which is why opening docked
+// devtools "fixed" it: the viewport resize was a SIGWINCH.
+//
+// It is not a narrow race against UPSTREAM_LINGER_MS either. detachClient only
+// starts the linger when the LAST client leaves, and a dashboard tab holds a
+// client open for EVERY session (terminal.js mounts every iframe, hidden ones
+// included) — so with the dashboard open anywhere the upstream never closes and
+// every later join is a silent reuse.
+//
+// So repaint out of band on join. Throttled per id: several clients joining the
+// same terminal at once (two windows, a reconnect storm) cost one repaint.
+const REPAINT_THROTTLE_MS = 200;
+const lastRepaint = new Map<string, number>();
+
+function repaintOnJoin(id: string): void {
+  const now = Date.now();
+  if (now - (lastRepaint.get(id) ?? 0) < REPAINT_THROTTLE_MS) return;
+  lastRepaint.set(id, now);
+  // Best-effort: repaintSession swallows a dead session, which just leaves the
+  // pane as blank as it is today.
+  void getSession(id).then((rec) => repaintSession(rec?.zellij)).catch(() => {});
+}
+
 function closeUpstream(id: string): void {
   const up = upstreams.get(id);
   if (!up) return;
   if (up.idleTimer) clearTimeout(up.idleTimer);
   upstreams.delete(id);
+  lastRepaint.delete(id);
   up.conn.close();
   for (const c of up.clients) { try { c.close(); } catch { /* already gone */ } }
 }
@@ -642,10 +670,12 @@ async function attachClient(ws: ServerWebSocket<TermSocketData>): Promise<void> 
   const up = upstreams.get(id);
 
   if (up) {
-    // Reuse: cancel the pending teardown and join the existing stream.
+    // Reuse: cancel the pending teardown and join the existing stream. Nothing
+    // replays on this path, so ask zellij for a repaint (see repaintOnJoin).
     if (up.idleTimer) { clearTimeout(up.idleTimer); up.idleTimer = undefined; }
     up.clients.add(ws);
     flushPending(ws);
+    repaintOnJoin(id);
     return;
   }
 
@@ -1317,19 +1347,17 @@ const serveOptions = {
             lastCommand,
           };
           const live = await readLive(s.id);
-          if (live?.state) {
-            return {
-              ...base,
-              status: live.state,
-              summary: live.summary ?? null,
-              notification: live.notification ?? null,
-              sessionId: live.sessionId ?? null,
-            };
-          }
-          // No hook data (a plain shell, or a `claude` started before the hook
-          // env was set): with tmux gone there's no capture-pane fallback, so
-          // report idle. The hook covers every real Claude session.
-          return { ...base, status: "idle", summary: null, notification: null, sessionId: null };
+          // summarizeLive normalizes the hook's raw state into what the dot
+          // renders — running vs needs-you, plus isClaude/stale — and handles the
+          // no-hook-data case (a plain shell, or a `claude` started before the
+          // hook env was set) as "not a Claude session".
+          return {
+            ...base,
+            ...summarizeLive(live),
+            summary: live?.summary ?? null,
+            notification: live?.notification ?? null,
+            sessionId: live?.sessionId ?? null,
+          };
         }),
       );
       return json(enriched);
