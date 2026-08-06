@@ -565,9 +565,11 @@ main.terminal-page.sidebar-collapsed .term-item-name {
     display: none;
 }
 /* Working: the ONLY moving thing in the sidebar — the flickering block grid from
-   css-loaders.com ("l29"), adapted in two ways:
+   css-loaders.com ("l29"), adapted in three ways:
      • scaled to a 3px unit (an exact 1/3 of the original 9px), so the 3x4 grid is
        15x12 instead of 45x36 and fits a tab row;
+     • the columns pulled to a 5px pitch (a 2px gutter rather than 3px), which
+       narrows the grid to 13x12 without landing a cell off a whole pixel;
      • the hardcoded #000 dropped, so every cell inherits currentColor and the
        grid is amber in both themes. A box-shadow with no colour uses `color`,
        which is what made the original's `color: #000` load-bearing.
@@ -582,10 +584,10 @@ main.terminal-page.sidebar-collapsed .term-item-name {
     background: currentColor;
     transform: translateY(-1.5px);
     box-shadow:
-        -6px -3px, 0 -3px, 6px -3px,
-        -6px 0, 6px 0,
-        -6px 3px, 0 3px, 6px 3px,
-        -6px 6px, 0 6px, 6px 6px;
+        -5px -3px, 0 -3px, 5px -3px,
+        -5px 0, 5px 0,
+        -5px 3px, 0 3px, 5px 3px,
+        -5px 6px, 0 6px, 5px 6px;
     /* steps(1, end), not the default ease: each keyframe's grid HOLDS until the
        next boundary instead of cross-fading into it. Cells snap out rather than
        dimming — closer to the intent — and it's ~40% cheaper, because animating
@@ -635,70 +637,71 @@ main.terminal-page.sidebar-collapsed .term-status-dot {
 
 /* Each step blanks a few cells (#0000) and restores the rest — the flicker is
    the cells going out, not anything moving. Transcribed from the original at the
-   3px unit; every offset is the source value divided by three. */
+   3px unit; every vertical offset is the source value divided by three, and the
+   horizontal ones are then pulled in a pixel for the narrower grid. */
 @keyframes skua-load {
     10% {
         box-shadow:
-            -6px -3px, 0 -3px, 6px -3px,
-            -6px 0, 6px 0,
-            -6px 3px #0000, 0 3px, 6px 3px #0000,
-            -6px 6px, 0 6px, 6px 6px;
+            -5px -3px, 0 -3px, 5px -3px,
+            -5px 0, 5px 0,
+            -5px 3px #0000, 0 3px, 5px 3px #0000,
+            -5px 6px, 0 6px, 5px 6px;
     }
     20% {
         box-shadow:
-            -6px -3px, 0 -3px, 6px -3px,
-            -6px 0, 6px 0,
-            -6px 3px, 0 3px, 6px 3px #0000,
-            -6px 6px #0000, 0 6px, 6px 6px;
+            -5px -3px, 0 -3px, 5px -3px,
+            -5px 0, 5px 0,
+            -5px 3px, 0 3px, 5px 3px #0000,
+            -5px 6px #0000, 0 6px, 5px 6px;
     }
     30% {
         box-shadow:
-            -6px -3px, 0 -3px #0000, 6px -3px,
-            -6px 0 #0000, 6px 0,
-            -6px 3px, 0 3px #0000, 6px 3px,
-            -6px 6px #0000, 0 6px, 6px 6px #0000;
+            -5px -3px, 0 -3px #0000, 5px -3px,
+            -5px 0 #0000, 5px 0,
+            -5px 3px, 0 3px #0000, 5px 3px,
+            -5px 6px #0000, 0 6px, 5px 6px #0000;
     }
     40% {
         box-shadow:
-            -6px -3px, 0 -3px, 6px -3px,
-            -6px 0 #0000, 6px 0 #0000,
-            -6px 3px, 0 3px, 6px 3px,
-            -6px 6px, 0 6px, 6px 6px;
+            -5px -3px, 0 -3px, 5px -3px,
+            -5px 0 #0000, 5px 0 #0000,
+            -5px 3px, 0 3px, 5px 3px,
+            -5px 6px, 0 6px, 5px 6px;
     }
     50% {
         box-shadow:
-            -6px -3px, 0 -3px, 6px -3px,
-            -6px 0, 6px 0 #0000,
-            -6px 3px #0000, 0 3px, 6px 3px,
-            -6px 6px, 0 6px, 6px 6px;
+            -5px -3px, 0 -3px, 5px -3px,
+            -5px 0, 5px 0 #0000,
+            -5px 3px #0000, 0 3px, 5px 3px,
+            -5px 6px, 0 6px, 5px 6px;
     }
     60% {
         box-shadow:
-            -6px -3px, 0 -3px #0000, 6px -3px,
-            -6px 0, 6px 0,
-            -6px 3px #0000, 0 3px, 6px 3px,
-            -6px 6px #0000, 0 6px, 6px 6px;
+            -5px -3px, 0 -3px #0000, 5px -3px,
+            -5px 0, 5px 0,
+            -5px 3px #0000, 0 3px, 5px 3px,
+            -5px 6px #0000, 0 6px, 5px 6px;
     }
     70% {
         box-shadow:
-            -6px -3px, 0 -3px #0000, 6px -3px #0000,
-            -6px 0, 6px 0,
-            -6px 3px, 0 3px, 6px 3px,
-            -6px 6px #0000, 0 6px, 6px 6px;
+            -5px -3px, 0 -3px #0000, 5px -3px #0000,
+            -5px 0, 5px 0,
+            -5px 3px, 0 3px, 5px 3px,
+            -5px 6px #0000, 0 6px, 5px 6px;
     }
     80% {
         box-shadow:
-            -6px -3px #0000, 0 -3px, 6px -3px,
-            -6px 0, 6px 0,
-            -6px 3px, 0 3px, 6px 3px,
-            -6px 6px, 0 6px, 6px 6px #0000;
+            -5px -3px #0000, 0 -3px, 5px -3px,
+            -5px 0, 5px 0,
+            -5px 3px, 0 3px, 5px 3px,
+            -5px 6px, 0 6px, 5px 6px #0000;
     }
     90% {
         box-shadow:
-            -6px -3px #0000, 0 -3px, 6px -3px,
-            -6px 0, 6px 0,
-            -6px 3px, 0 3px #0000, 6px 3px,
-            -6px 6px, 0 6px, 6px 6px #0000;
+            -5px -3px #0000, 0 -3px, 5px -3px,
+            -5px 0, 5px 0,
+            -5px 3px, 0 3px #0000, 5px 3px,
+            -5px 6px, 0 6px, 5px 6px #0000;
     }
 }
 
