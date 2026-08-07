@@ -1,7 +1,10 @@
 # skua
 
 <p align="center">
-  <img src="./assets/skua.png" alt="skua" width="480">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./assets/bird-dark.svg">
+    <img src="./assets/bird.svg" alt="skua" width="220">
+  </picture>
 </p>
 
 A local first, no subscription way to develop full stack applications using your browser on localhost. Designed for Claude code users, but can be easily ported to codex or other CLI agents.
